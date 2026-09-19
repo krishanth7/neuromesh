@@ -12,7 +12,7 @@ scheduling heuristics—not hosted inference, pretrained models, or machine lear
 ## Project status
 
 **Foundation stage.** The current implementation provides a Rust workspace and
-validated resource/liveness configuration. It does not yet launch a mesh, route
+validated resource/liveness configuration, Ed25519 identities, and lifecycle transitions. It does not yet launch a mesh, route
 traffic, or execute distributed tasks. No production-readiness or performance
 claims are made. See the [roadmap](ROADMAP.md) and
 [public engineering project](https://github.com/users/krishanth7/projects/6).
@@ -51,7 +51,7 @@ modules will be introduced with actual implementations, not empty placeholders.
 | Capability | Status |
 |---|---|
 | Resource and heartbeat configuration validation | Implemented |
-| Identity and lifecycle | Planned next |
+| Ed25519 identity, fingerprints, strict signature verification, lifecycle | Implemented |
 | Authenticated QUIC and NMP/1 | Planned |
 | Discovery and failure detection | Planned |
 | Weighted routing and recovery | Planned |

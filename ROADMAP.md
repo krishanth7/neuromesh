@@ -44,4 +44,4 @@ as their requirements are investigated, not created solely to close them.
 
 ## Current state
 
-Foundation implementation under review. No releases have been published.
+Workspace foundation merged; identity/lifecycle implementation under review. No releases have been published.

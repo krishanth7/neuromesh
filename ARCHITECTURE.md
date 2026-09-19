@@ -7,6 +7,11 @@ Validation rejects peer counts outside 1–1024, frames outside 256–1,048,576 
 zero heartbeat intervals, and failure timeouts no greater than the interval.
 These are configuration contracts; no runtime enforcement is claimed yet.
 
+The core also owns Ed25519 identities and domain-separated BLAKE3 fingerprints.
+Secret keys are neither serializable nor printable. Lifecycle transitions enforce
+Created → Starting → Running → Draining → Stopped, with explicit failure exits.
+See [ADR 0002](docs/architecture/0002-identity.md).
+
 ## Planned boundaries
 
 - Core: identities, validated values, lifecycle and task contracts.
