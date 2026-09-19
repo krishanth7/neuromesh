@@ -1,0 +1,9 @@
+/target/
+**/node_modules/
+**/dist/
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+/mesh-data/

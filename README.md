@@ -1,2 +1,76 @@
-# neuromesh
-A self-organizing distributed intelligence network for adaptive routing, resilient communication, peer discovery, failure recovery, and decentralized computation.
+# NeuroMesh
+
+**Self-Organizing Distributed Intelligence Network**
+
+[![CI](https://github.com/krishanth7/neuromesh/actions/workflows/ci.yml/badge.svg)](https://github.com/krishanth7/neuromesh/actions/workflows/ci.yml)
+
+NeuroMesh is an experimental Rust project exploring secure peer communication,
+adaptive routing, failure recovery, and decentralized computation. Its planned
+adaptive behavior uses graph algorithms, statistical measurements, and explicit
+scheduling heuristics—not hosted inference, pretrained models, or machine learning.
+
+## Project status
+
+**Foundation stage.** The current implementation provides a Rust workspace and
+validated resource/liveness configuration. It does not yet launch a mesh, route
+traffic, or execute distributed tasks. No production-readiness or performance
+claims are made. See the [roadmap](ROADMAP.md) and
+[public engineering project](https://github.com/users/krishanth7/projects/6).
+
+## Why NeuroMesh?
+
+Explore how small independent nodes can discover each other, measure connection
+health, select transparent routes, and recover from failures. Every milestone
+must be reproducible through tests and documented commands.
+
+## Quick start
+
+Install Rust stable with Cargo, rustfmt, and Clippy, plus Python 3 for the local
+link checker. Clone the repository, then run:
+
+```sh
+git clone https://github.com/krishanth7/neuromesh.git
+cd neuromesh
+cargo build --locked --workspace
+cargo test --locked --workspace --all-features
+cargo fmt --all -- --check
+cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+cargo doc --locked --workspace --no-deps
+python3 scripts/check_links.py
+```
+
+There is no CLI binary yet. Do not use future `neuromesh node start` examples
+until the networking and CLI milestones are delivered.
+
+## Architecture
+
+The [architecture](ARCHITECTURE.md) separates pure domain contracts from async I/O.
+Only `neuromesh-core` exists today. Network, discovery, routing, and scheduler
+modules will be introduced with actual implementations, not empty placeholders.
+
+| Capability | Status |
+|---|---|
+| Resource and heartbeat configuration validation | Implemented |
+| Identity and lifecycle | Planned next |
+| Authenticated QUIC and NMP/1 | Planned |
+| Discovery and failure detection | Planned |
+| Weighted routing and recovery | Planned |
+| Distributed tasks and reassignment | Planned |
+| Metrics, read-only API, and observatory | Planned |
+| Reproducible benchmarks | Planned; no results published |
+
+## Security
+
+This is experimental software. Review [SECURITY.md](SECURITY.md) before use.
+Private keys and network-specific secrets must never be committed. Security
+boundaries and remaining limitations will be documented with each implementation.
+
+## Contributing and support
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md),
+and [SUPPORT.md](SUPPORT.md). Work proceeds through substantive pull requests,
+passing CI, actual diff review, and evidence-based milestone releases.
+
+## License
+
+[Apache License 2.0](LICENSE). The complete license is retained without changes.
