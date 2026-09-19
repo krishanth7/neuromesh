@@ -11,7 +11,7 @@ workspace = true
 
 [dependencies]
 blake3 = "1.8.7"
-ed25519-dalek = { version = "3.0.0", features = ["rand_core"] }
+ed25519-dalek = "3.0.0"
 rand_core = { version = "0.6", features = ["getrandom"] }
 serde = { version = "1.0.229", features = ["derive"] }
 zeroize = "1.9.0"

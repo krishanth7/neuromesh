@@ -40,7 +40,7 @@ impl std::error::Error for InvalidNodeId {}
 impl FromStr for NodeId {
     type Err = InvalidNodeId;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.len() != 64 || !s.is_ascii() {
+        if s.len() != 64 || !s.bytes().all(|b| b.is_ascii_hexdigit()) {
             return Err(InvalidNodeId);
         }
         let mut bytes = [0; 32];
@@ -133,6 +133,7 @@ mod tests {
             "".to_owned(),
             "a".repeat(63),
             "g".repeat(64),
+            "+1".repeat(32),
             "é".repeat(32),
             "a".repeat(65),
         ] {
