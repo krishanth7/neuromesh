@@ -20,5 +20,8 @@ messages; cap frames, connections, queues, and task work; use monotonic deadline
 keep keys out of logs and version control. Retries require explicit attempt IDs
 and stale-result rejection. Document remaining risks before each release.
 
-Current scope is configuration validation only. Transport authentication, replay
+Current scope is configuration validation and core identity primitives.
+Generated temporary key seeds are zeroized, and secret identity objects have no
+Debug or serialization implementation. Raw signature verification alone does not
+prevent replay or authorize peers. Caller-owned imported seeds must be protected. Transport authentication, replay
 handling, runtime resource limits, and sandboxing are not implemented yet.

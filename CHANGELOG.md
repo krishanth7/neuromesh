@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Added
+- OS-generated Ed25519 identities, strict signature verification, and BLAKE3 node fingerprints.
+- Explicit lifecycle state machine with exhaustive transition coverage.
 - Rust workspace with validated resource and liveness configuration.
 - CI for formatting, Clippy, tests, build, API docs, and relative Markdown links.
 - Engineering roadmap, architecture decision, contribution and security policies.

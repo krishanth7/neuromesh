@@ -3,6 +3,9 @@
 //! This crate contains no network I/O. Validate configuration before allocating
 //! resources or starting any listener.
 
+pub mod identity;
+pub mod lifecycle;
+
 use std::{fmt, time::Duration};
 
 /// Hard resource ceilings for this experimental implementation.
