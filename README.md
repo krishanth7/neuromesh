@@ -46,7 +46,7 @@ until the networking and CLI milestones are delivered.
 ## Architecture
 
 The [architecture](ARCHITECTURE.md) separates pure domain contracts from async I/O.
-`neuromesh-core`, `neuromesh-protocol`, and `neuromesh-network` exist today. Network, discovery, routing, and scheduler
+`neuromesh-core`, `neuromesh-protocol`, and `neuromesh-network` exist today. Discovery, routing, and scheduler
 modules will be introduced with actual implementations, not empty placeholders.
 
 | Capability | Status |

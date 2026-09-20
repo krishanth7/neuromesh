@@ -20,7 +20,7 @@ messages; cap frames, connections, queues, and task work; use monotonic deadline
 keep keys out of logs and version control. Retries require explicit attempt IDs
 and stale-result rejection. Document remaining risks before each release.
 
-Current scope is configuration validation and core identity primitives.
+Current scope includes configuration, identity primitives, and a QUIC transport library.
 Generated temporary key seeds are zeroized, and secret identity objects have no
 Debug or serialization implementation. Raw signature verification alone does not
 prevent replay or authorize peers. Caller-owned imported seeds must be protected.
