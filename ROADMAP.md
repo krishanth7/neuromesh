@@ -44,4 +44,6 @@ as their requirements are investigated, not created solely to close them.
 
 ## Current state
 
-Workspace foundation merged; identity/lifecycle implementation under review. No releases have been published.
+Foundation, identity/lifecycle, and bounded protocol are merged. Authenticated
+QUIC transport is under review. The v0.1.0 foundation release is saved as a draft;
+publication remains pending. No releases have been published.

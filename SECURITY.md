@@ -23,5 +23,9 @@ and stale-result rejection. Document remaining risks before each release.
 Current scope is configuration validation and core identity primitives.
 Generated temporary key seeds are zeroized, and secret identity objects have no
 Debug or serialization implementation. Raw signature verification alone does not
-prevent replay or authorize peers. Caller-owned imported seeds must be protected. Transport authentication, replay
-handling, runtime resource limits, and sandboxing are not implemented yet.
+prevent replay or authorize peers. Caller-owned imported seeds must be protected.
+
+The transport implements mutual TLS, explicit NodeId authorization, session-bound
+identity proofs, request sequence checks, bounded frames/connections, and deadlines.
+See [transport limits](docs/architecture/0003-quic.md). It has not received an
+independent security audit; there is no task sandbox or Internet DoS guarantee.

@@ -12,6 +12,12 @@ Secret keys are neither serializable nor printable. Lifecycle transitions enforc
 Created → Starting → Running → Draining → Stopped, with explicit failure exits.
 See [ADR 0002](docs/architecture/0002-identity.md).
 
+## Transport implementation
+
+`neuromesh-network` provides authenticated bounded QUIC sessions over NMP/1.
+See [ADR 0003](docs/architecture/0003-quic.md) for trust, replay and resource limits.
+The full mesh runtime, peer registry and discovery remain future work.
+
 ## Planned boundaries
 
 - Core: identities, validated values, lifecycle and task contracts.
