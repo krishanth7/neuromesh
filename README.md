@@ -45,14 +45,15 @@ until the networking and CLI milestones are delivered.
 ## Architecture
 
 The [architecture](ARCHITECTURE.md) separates pure domain contracts from async I/O.
-Only `neuromesh-core` exists today. Network, discovery, routing, and scheduler
+`neuromesh-core` and `neuromesh-protocol` exist today. Network, discovery, routing, and scheduler
 modules will be introduced with actual implementations, not empty placeholders.
 
 | Capability | Status |
 |---|---|
 | Resource and heartbeat configuration validation | Implemented |
 | Ed25519 identity, fingerprints, strict signature verification, lifecycle | Implemented |
-| Authenticated QUIC and NMP/1 | Planned |
+| Bounded NMP/1 control-message encoding | Implemented; [specification](docs/protocol/NMP-1.md) |
+| Authenticated QUIC transport | Planned next |
 | Discovery and failure detection | Planned |
 | Weighted routing and recovery | Planned |
 | Distributed tasks and reassignment | Planned |
