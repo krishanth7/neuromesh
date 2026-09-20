@@ -44,4 +44,6 @@ as their requirements are investigated, not created solely to close them.
 
 ## Current state
 
-Workspace foundation merged; identity/lifecycle implementation under review. No releases have been published.
+The current code includes foundation, identity/lifecycle, bounded protocol, and
+authenticated QUIC transport. Peer registry and autonomous mesh remain pending. The v0.1.0 foundation release is saved as a draft;
+publication remains pending. No releases have been published.

@@ -1,14 +1,14 @@
 # NeuroMesh Protocol version 1 (NMP/1)
 
-Status: experimental encoding contract. Transport is the next milestone; this
-specification does not claim a running network implementation yet.
+Status: experimental control protocol with a QUIC transport library.
+See [transport authentication and limits](../architecture/0003-quic.md).
 
 ## Framing and versioning
 
 One stream request contains a four-byte unsigned big-endian payload length,
 followed by UTF-8 JSON of at most 65,536 bytes. The response uses the same framing.
 A transport must check the length before allocating and enforce an operation
- deadline; it must not wait indefinitely for a peer to finish sending.
+deadline; it must not wait indefinitely for a peer to finish sending.
 
 `Envelope` requires exactly `version`, `message_id`, `sender`, and `message`.
 Version is integer 1; other versions fail closed. IDs are positive u64 values,

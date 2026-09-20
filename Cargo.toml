@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/neuromesh-core", "crates/neuromesh-protocol"]
+members = ["crates/neuromesh-core", "crates/neuromesh-protocol", "crates/neuromesh-network"]
 resolver = "2"
 
 [workspace.package]

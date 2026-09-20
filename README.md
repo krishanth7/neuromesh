@@ -11,8 +11,9 @@ scheduling heuristics—not hosted inference, pretrained models, or machine lear
 
 ## Project status
 
-**Foundation stage.** The current implementation provides a Rust workspace and
-validated resource/liveness configuration, Ed25519 identities, and lifecycle transitions. It does not yet launch a mesh, route
+**Experimental transport library stage.** The current implementation provides a Rust workspace and
+validated configuration, Ed25519 identities, lifecycle transitions, bounded NMP/1
+encoding, and authenticated QUIC sessions. It does not yet launch a mesh, route
 traffic, or execute distributed tasks. No production-readiness or performance
 claims are made. See the [roadmap](ROADMAP.md) and
 [public engineering project](https://github.com/users/krishanth7/projects/6).
@@ -45,7 +46,7 @@ until the networking and CLI milestones are delivered.
 ## Architecture
 
 The [architecture](ARCHITECTURE.md) separates pure domain contracts from async I/O.
-`neuromesh-core` and `neuromesh-protocol` exist today. Network, discovery, routing, and scheduler
+`neuromesh-core`, `neuromesh-protocol`, and `neuromesh-network` exist today. Discovery, routing, and scheduler
 modules will be introduced with actual implementations, not empty placeholders.
 
 | Capability | Status |
@@ -53,12 +54,22 @@ modules will be introduced with actual implementations, not empty placeholders.
 | Resource and heartbeat configuration validation | Implemented |
 | Ed25519 identity, fingerprints, strict signature verification, lifecycle | Implemented |
 | Bounded NMP/1 control-message encoding | Implemented; [specification](docs/protocol/NMP-1.md) |
-| Authenticated QUIC transport | Planned next |
+| Mutual-TLS QUIC and session-bound identity proofs | Implemented library; [design and limits](docs/architecture/0003-quic.md) |
 | Discovery and failure detection | Planned |
 | Weighted routing and recovery | Planned |
 | Distributed tasks and reassignment | Planned |
 | Metrics, read-only API, and observatory | Planned |
 | Reproducible benchmarks | Planned; no results published |
+
+## Run the two-node transport test
+
+```sh
+cargo test --locked -p neuromesh-network --test quic real_quic_identity_ping_and_graceful_close -- --nocapture
+```
+
+This starts real localhost QUIC endpoints with ephemeral test certificates,
+authenticates both identities, exchanges three pings, and checks shutdown. It is
+a transport integration test, not the future autonomous multi-node mesh demo.
 
 ## Security
 
