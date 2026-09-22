@@ -4,7 +4,8 @@ import System.Exit (die)
 import Data.Char (digitToInt)
 import Data.List (intercalate)
 uint :: String -> Bool
-uint s = not (null s) && length s <= 20 && all (`elem` ['0'..'9']) s && (length s == 1 || head s /= '0') && (read s :: Integer) <= 18446744073709551615
+uint [] = False
+uint s@(first:rest) = length s <= 20 && all (`elem` ['0'..'9']) s && (null rest || first /= '0') && (length s < 20 || s <= "18446744073709551615")
 bytes :: String -> [String]
 bytes [] = []
 bytes (a:b:rest) = show (16 * digitToInt a + digitToInt b) : bytes rest
