@@ -1,57 +1,12 @@
 //! Real localhost QUIC integration tests with ephemeral test-only certificates.
 use neuromesh_core::identity::Identity;
-use neuromesh_network::{Credentials, MeshEndpoint};
+use neuromesh_network::MeshEndpoint;
 use neuromesh_protocol::Message;
-use rcgen::{BasicConstraints, CertificateParams, IsCa, KeyPair};
-use rustls::{pki_types::PrivatePkcs8KeyDer, RootCertStore};
 use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
-fn credentials_pair() -> (Credentials, Credentials) {
-    let mut params = CertificateParams::new(vec!["mesh.test".into()]).unwrap();
-    params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
-    let ca_key = KeyPair::generate().unwrap();
-    let ca = params.self_signed(&ca_key).unwrap();
-    let make = || {
-        let key = KeyPair::generate().unwrap();
-        let params = CertificateParams::new(vec!["mesh.test".into()]).unwrap();
-        let cert = params.signed_by(&key, &ca, &ca_key).unwrap();
-        let mut roots = RootCertStore::empty();
-        roots.add(ca.der().clone()).unwrap();
-        Credentials {
-            chain: vec![cert.der().clone()],
-            key: PrivatePkcs8KeyDer::from(key.serialize_der()).into(),
-            roots,
-        }
-    };
-    (make(), make())
-}
-fn endpoints(untrusted_cert: bool) -> (Arc<MeshEndpoint>, Arc<MeshEndpoint>) {
-    let (a_tls, mut b_tls) = credentials_pair();
-    if untrusted_cert {
-        b_tls = credentials_pair().0;
-    }
-    let a = Identity::from_seed(&[1; 32]);
-    let b = Identity::from_seed(&[2; 32]);
-    let a_id = a.node_id();
-    let b_id = b.node_id();
-    let a = MeshEndpoint::bind(
-        "127.0.0.1:0".parse().unwrap(),
-        a_tls,
-        a,
-        BTreeSet::from([b_id]),
-        2,
-    )
-    .unwrap();
-    let b = MeshEndpoint::bind(
-        "127.0.0.1:0".parse().unwrap(),
-        b_tls,
-        b,
-        BTreeSet::from([a_id]),
-        2,
-    )
-    .unwrap();
-    (Arc::new(a), Arc::new(b))
-}
+mod support;
+use support::{credentials_pair, endpoints};
+
 #[tokio::test]
 async fn real_quic_identity_ping_and_graceful_close() {
     let (a, b) = endpoints(false);
@@ -215,6 +170,62 @@ async fn allowlisted_but_wrong_expected_identity_is_rejected() {
         .is_err());
     let _ = done_tx.send(());
     worker.await.unwrap();
+    a.close();
+    b.close();
+}
+
+#[tokio::test]
+async fn authenticated_sessions_register_and_duplicate_identity_is_rejected() {
+    use neuromesh_core::peers::{Health, PeerError, PeerRegistry};
+    use std::time::Instant;
+    let (a, b) = endpoints(false);
+    let server = b.clone();
+    let (done_tx, done_rx) = tokio::sync::oneshot::channel();
+    let (connected_tx, connected_rx) = tokio::sync::oneshot::channel();
+    let worker = tokio::spawn(async move {
+        let first = server.accept().await.unwrap();
+        let second = server.accept().await.unwrap();
+        let mut peers = PeerRegistry::new(
+            server.node_id(),
+            2,
+            Duration::from_secs(2),
+            Duration::from_secs(5),
+            Instant::now(),
+        )
+        .unwrap();
+        peers.register(first.peer(), Instant::now()).unwrap();
+        assert_eq!(
+            peers.register(second.peer(), Instant::now()),
+            Err(PeerError::Duplicate)
+        );
+        connected_rx.await.unwrap();
+        drop(second);
+        first
+            .respond(|message| match message {
+                Message::Ping { nonce } => Message::Pong { nonce },
+                _ => unreachable!(),
+            })
+            .await
+            .unwrap();
+        peers.observe(first.peer(), Instant::now()).unwrap();
+        assert_eq!(peers.get(first.peer()).unwrap().health, Health::Healthy);
+        assert_eq!(peers.len(), 1);
+        done_rx.await.unwrap();
+    });
+    let first = a
+        .connect(b.local_addr().unwrap(), "mesh.test", b.node_id())
+        .await
+        .unwrap();
+    let second = a
+        .connect(b.local_addr().unwrap(), "mesh.test", b.node_id())
+        .await
+        .unwrap();
+    connected_tx.send(()).unwrap();
+    let response = first.request(Message::Ping { nonce: 42 }).await.unwrap();
+    assert_eq!(response.message, Message::Pong { nonce: 42 });
+    done_tx.send(()).unwrap();
+    worker.await.unwrap();
+    drop((first, second));
     a.close();
     b.close();
 }
