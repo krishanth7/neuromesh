@@ -1,0 +1,96 @@
+    Checking neuromesh-network v0.1.0 (<checkout>/crates/neuromesh-network)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.22s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running unittests src/lib.rs (target/debug/deps/neuromesh_core-c3a6fb3415114042)
+
+running 15 tests
+test identity::tests::rejects_bad_fingerprints_without_panicking ... ok
+test lifecycle::tests::graceful_lifecycle_and_serialization ... ok
+test identity::tests::os_generated_keys_are_distinct ... ok
+test identity::tests::identity_is_stable_and_keys_are_distinct ... ok
+test peers::tests::exact_thresholds_recovery_and_no_implicit_eviction ... ok
+test lifecycle::tests::exhaustive_transition_matrix ... ok
+test peers::tests::backwards_time_and_unknown_observations_are_atomic ... ok
+test tests::defaults_are_valid ... ok
+test peers::tests::duplicates_self_and_capacity_do_not_mutate_state ... ok
+test peers::tests::rejects_invalid_configuration ... ok
+test tests::frame_limit_boundaries ... ok
+test tests::peer_limit_boundaries ... ok
+test tests::rejects_zero_and_inverted_heartbeat_windows ... ok
+test peers::tests::snapshots_have_stable_order_and_removal_is_idempotent ... ok
+test identity::tests::rejects_message_key_and_signature_tampering ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running unittests src/lib.rs (target/debug/deps/neuromesh_network-4934a21a783553cc)
+
+running 1 test
+test tests::proofs_reject_other_sessions_roles_and_untrusted_keys ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/quic.rs (target/debug/deps/quic-3ee6346dbce36fae)
+
+running 6 tests
+test untrusted_certificate_is_rejected ... ok
+test wrong_hostname_and_unlisted_identity_are_rejected ... ok
+test allowlisted_but_wrong_expected_identity_is_rejected ... ok
+test authenticated_sessions_register_and_duplicate_identity_is_rejected ... ok
+test connection_cap_releases_when_session_drops ... ok
+test real_quic_identity_ping_and_graceful_close ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running unittests src/lib.rs (target/debug/deps/neuromesh_protocol-6d8d9792b4c3c581)
+
+running 4 tests
+test tests::bounded_writer_refuses_to_grow_past_limit ... ok
+test tests::rejects_malformed_duplicate_unknown_and_oversized_input ... ok
+test tests::rejects_versions_ids_and_payload_limits ... ok
+test tests::all_control_messages_round_trip ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests neuromesh_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests neuromesh_network
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests neuromesh_protocol
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+    Checking neuromesh-core v0.1.0 (<checkout>/crates/neuromesh-core)
+ Documenting neuromesh-core v0.1.0 (<checkout>/crates/neuromesh-core)
+    Checking neuromesh-protocol v0.1.0 (<checkout>/crates/neuromesh-protocol)
+ Documenting neuromesh-protocol v0.1.0 (<checkout>/crates/neuromesh-protocol)
+ Documenting neuromesh-network v0.1.0 (<checkout>/crates/neuromesh-network)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.15s
+   Generated <checkout>/target/doc/neuromesh_core/index.html and 2 other files
+Relative Markdown file links: PASS
+rust: 38/38
+python: 38/38
+javascript: 38/38
+typescript: 38/38
+go: 38/38
+c: 38/38
+cpp: 38/38
+java: 38/38
+csharp: 38/38
+ruby: 38/38
+php: 38/38
+perl: 38/38
+lua: 38/38
+r: 38/38
+haskell: 38/38
+Total: 570/570; SQL summary verified

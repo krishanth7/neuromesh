@@ -7,3 +7,6 @@
 *.key
 *.pem
 /mesh-data/
+
+__pycache__/
+*.pyc

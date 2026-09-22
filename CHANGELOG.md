@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — peer health and interoperability
+
+- Bounded peer registry with duplicate rejection, deterministic health transitions, and recovery.
+- Real QUIC integration coverage for authenticated peer registration.
+- Fifteen lossless NMP/1 Ping encoders, SQL result aggregation, and Bash validation (17 languages).
+- Reproducible localhost transport measurements with raw samples and source hashes.
+- Dedicated interoperability CI and an evidence-based README.
+
+
 ## Unreleased
 
 ### Added

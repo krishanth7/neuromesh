@@ -5,6 +5,7 @@
 
 pub mod identity;
 pub mod lifecycle;
+pub mod peers;
 
 use std::{fmt, time::Duration};
 

@@ -1,0 +1,33 @@
+name: Interoperability
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: interop-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  conformance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install language runtimes
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends golang-go default-jdk-headless mono-mcs ruby php-cli lua5.4 r-base-core ghc
+          rustup toolchain install stable --profile minimal --component rustfmt,clippy
+      - name: Validate Rust, Bash entry point, 15 encoders, and SQL reporting
+        run: bash scripts/verify.sh
+      - name: Retain per-case results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: interop-results
+          path: target/interop-results.json
+          if-no-files-found: warn
