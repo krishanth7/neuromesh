@@ -86,3 +86,5 @@ passing CI, actual diff review, and evidence-based milestone releases.
 ## License
 
 [Apache License 2.0](LICENSE). The complete license is retained without changes.
+
+Designed for Developers
