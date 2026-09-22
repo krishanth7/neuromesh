@@ -153,3 +153,5 @@ are untrusted claims until authenticated by the transport.
 ## License
 
 [Apache License 2.0](LICENSE).
+
+Designed for Developers

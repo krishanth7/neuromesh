@@ -15,6 +15,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 BUILD = ROOT / "target/interop"
+CARGO_TARGET = ROOT / "target/interop-cargo"
 
 
 def run(cmd, **kwargs):
@@ -37,7 +38,7 @@ def source_hashes():
 
 def commands():
     return {
-        "rust": (["cargo", "build", "--locked", "-p", "neuromesh-protocol", "--examples"], [ROOT / "target/debug/examples/nmp_ping"], ["rustc", "--version"]),
+        "rust": (["cargo", "build", "--locked", "--target-dir", CARGO_TARGET, "-p", "neuromesh-protocol", "--examples"], [CARGO_TARGET / "debug/examples/nmp_ping"], ["rustc", "--version"]),
         "python": ([], [sys.executable, "interop/python/ping.py"], [sys.executable, "--version"]),
         "javascript": ([], ["node", "interop/javascript/ping.mjs"], ["node", "--version"]),
         "typescript": ([], ["node", "interop/typescript/ping.ts"], ["node", "--version"]),
@@ -75,8 +76,8 @@ def main():
     if len(args.languages) != len(set(args.languages)):
         parser.error("duplicate languages are not allowed")
     BUILD.mkdir(parents=True, exist_ok=True)
-    checked(["cargo", "build", "--locked", "-p", "neuromesh-protocol", "--examples"])
-    oracle = ROOT / "target/debug/examples/check_envelope"
+    checked(["cargo", "build", "--locked", "--target-dir", CARGO_TARGET, "-p", "neuromesh-protocol", "--examples"])
+    oracle = CARGO_TARGET / "debug/examples/check_envelope"
     rows = []
     versions = {}
     for language in args.languages:

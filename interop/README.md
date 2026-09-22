@@ -67,8 +67,9 @@ python3 scripts/check_interop.py --languages rust python javascript
 ```
 
 The default run requires every encoder; missing runtimes fail instead of silently
-skipping coverage. A subset is always identified in the report. Builds go into
-`target/interop`; the report is `target/interop-results.json`. Thirty-eight cases
+skipping coverage. A subset is always identified in the report. Non-Rust builds go into
+`target/interop`; Rust oracle and encoder builds explicitly use `target/interop-cargo`
+so Cargo environment/configuration cannot redirect them away from the executed paths; the report is `target/interop-results.json`. Thirty-eight cases
 per encoder cover four valid vectors and 34 invalid vectors. Every valid output
 is compared with expected values **and decoded by the actual Rust NMP/1 decoder**.
 SQL aggregates are compared with the runner's observed outcomes.

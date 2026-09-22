@@ -3,7 +3,9 @@
 These files contain observed runs, not estimated targets or invented dashboard data.
 `base_commit` identifies the starting revision; per-file SHA-256 values identify
 the actual source used, including uncommitted changes in the recorded development
-run. Dates, compiler/runtime versions, and environment information are retained.
+run. These are historical snapshots; subsequent compatibility and harness fixes
+are validated by the current CI run and its artifact, not retroactively inserted
+into an earlier measurement. Dates, compiler/runtime versions, and environment information are retained.
 
 ## Localhost transport
 
