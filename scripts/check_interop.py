@@ -87,7 +87,7 @@ def main():
         versions[language] = (v.stdout + v.stderr).decode().strip().splitlines()[0]
         for index, (argv, valid) in enumerate(cases()):
             result = run([*cmd, *argv])
-            passed = result.returncode != 0 and result.stdout == b"" if not valid else False
+            passed = result.returncode > 0 and result.stdout == b"" and bool(result.stderr) if not valid else False
             if valid and result.returncode == 0:
                 expected = {"version": 1, "message_id": int(argv[1]), "sender": list(bytes.fromhex(argv[0])), "message": {"type": "Ping", "body": {"nonce": int(argv[2])}}}
                 try:

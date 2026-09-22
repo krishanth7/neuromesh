@@ -1,5 +1,5 @@
 {
-  "recorded_at_utc": "2026-09-22T09:23:14.465791+00:00",
+  "recorded_at_utc": "2026-09-22T09:29:24.728893+00:00",
   "platform": "Linux-6.18.44-x86_64-with-glibc2.39",
   "architecture": "x86_64",
   "base_commit": "c168abc0629835231ce5aa8d7e9cc0dedd08f533",
@@ -37,7 +37,7 @@
     "interop/sql/schema.sql": "4974da33287fb700ac2bc31d8b680df7fc5990853205b768b5aea96a31f02f7c",
     "interop/sql/summary.sql": "6a21d223f6b8a916d2a4a75f36a75f3d1a32108067b34e5d18d7a4cbf6996a21",
     "interop/typescript/ping.ts": "a9954c595b00dff03f9efe8b24057edb3e52d165e3e16d1b2126a7a31a834a3b",
-    "scripts/check_interop.py": "836f88517055388a997c18405217e376b47b5c0d800e7e65a386864ee3d596dc",
+    "scripts/check_interop.py": "cd466c77b263f64a9155b353998736b16af5b8d2ac3d2c60d094a261cecb4b55",
     "scripts/check_links.py": "fe0350d152b09422fd85fabc11268a55cbbbebc4a91f0a0bd543f564478a5bba",
     "scripts/record_measurement.py": "f07b1a2e062e5459a4f20da092e728389fe827dd6eb53ecc5296256eee4ee7a9",
     "scripts/verify.sh": "39c57baf221df6d4ae6546284844c9a5937c8b20e77f740b14c74e48bcd93341"
