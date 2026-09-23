@@ -23,6 +23,42 @@ pub struct PeerHint {
     /// Advertised QUIC socket.
     pub address: SocketAddr,
 }
+
+impl PeerHint {
+    /// Validate endpoint syntax without granting trust or initiating network I/O.
+    ///
+    /// IPv4-mapped IPv6 addresses follow the same rules as native IPv4.
+    /// IPv6 scope IDs and flow labels are local routing metadata and are not
+    /// portable discovery hints. Link-local IPv6 requires local interface policy.
+    /// Private and loopback addresses remain valid for explicit LAN/test use.
+    /// This is not an SSRF defense: callers must enforce their own destination policy.
+    pub fn validate(&self) -> Result<(), ProtocolError> {
+        let valid_ip = match self.address {
+            SocketAddr::V4(address) => {
+                let ip = address.ip();
+                !ip.is_unspecified() && !ip.is_multicast() && !ip.is_broadcast()
+            }
+            SocketAddr::V6(address) => {
+                let ip = address.ip();
+                let valid = match ip.to_ipv4_mapped() {
+                    Some(ip) => {
+                        !ip.is_unspecified() && !ip.is_multicast() && !ip.is_broadcast()
+                    }
+                    None => {
+                        !ip.is_unspecified()
+                            && !ip.is_multicast()
+                            && !ip.is_unicast_link_local()
+                    }
+                };
+                valid && address.scope_id() == 0 && address.flowinfo() == 0
+            }
+        };
+        if self.address.port() == 0 || !valid_ip {
+            return Err(ProtocolError::Validation);
+        }
+        Ok(())
+    }
+}
 /// Allowed control messages. Future task/routing messages require explicit version work.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", content = "body", deny_unknown_fields)]
@@ -111,12 +147,7 @@ impl Envelope {
                 !agent.is_empty() && agent.len() <= 64 && !agent.chars().any(char::is_control)
             }
             Message::Peers { peers } => {
-                peers.len() <= MAX_HINTS
-                    && peers.iter().all(|p| {
-                        p.address.port() != 0
-                            && !p.address.ip().is_unspecified()
-                            && !p.address.ip().is_multicast()
-                    })
+                peers.len() <= MAX_HINTS && peers.iter().all(|p| p.validate().is_ok())
             }
             Message::Error { detail, .. } => {
                 detail.len() <= 256 && !detail.chars().any(char::is_control)
@@ -238,5 +269,64 @@ mod tests {
         let mut w = Bounded(vec![0; MAX_FRAME]);
         assert!(w.write_all(&[1]).is_err());
         assert_eq!(w.0.len(), MAX_FRAME);
+    }
+
+    #[test]
+    fn peer_endpoints_reject_broadcast_mapped_and_nonportable_addresses() {
+        for address in [
+            "127.0.0.1:0",
+            "0.0.0.0:4433",
+            "224.0.0.1:4433",
+            "255.255.255.255:4433",
+            "[::]:4433",
+            "[ff02::1]:4433",
+            "[fe80::1]:4433",
+            "[::ffff:0.0.0.0]:4433",
+            "[::ffff:224.0.0.1]:4433",
+            "[::ffff:255.255.255.255]:4433",
+        ] {
+            let hint = PeerHint {
+                node: sender(),
+                address: address.parse().unwrap(),
+            };
+            assert_eq!(hint.validate(), Err(ProtocolError::Validation));
+            let envelope = Envelope::new(sender(), 1, Message::Peers { peers: vec![hint] });
+            assert_eq!(encode(&envelope), Err(ProtocolError::Validation));
+            let raw = serde_json::to_vec(&envelope).unwrap();
+            assert_eq!(decode(&raw), Err(ProtocolError::Validation));
+        }
+        for (flow, scope) in [(1, 0), (0, 1)] {
+            let hint = PeerHint {
+                node: sender(),
+                address: std::net::SocketAddrV6::new(
+                    "::1".parse().unwrap(),
+                    4433,
+                    flow,
+                    scope,
+                )
+                .into(),
+            };
+            assert_eq!(hint.validate(), Err(ProtocolError::Validation));
+        }
+    }
+
+    #[test]
+    fn peer_endpoints_preserve_explicit_local_and_ipv6_use() {
+        for address in [
+            "127.0.0.1:1",
+            "192.168.1.10:65535",
+            "[::1]:4433",
+            "[fd00::1]:4433",
+            "[2001:db8::1]:4433",
+            "[::ffff:127.0.0.1]:4433",
+        ] {
+            let hint = PeerHint {
+                node: sender(),
+                address: address.parse().unwrap(),
+            };
+            assert_eq!(hint.validate(), Ok(()));
+            let envelope = Envelope::new(sender(), 1, Message::Peers { peers: vec![hint] });
+            assert_eq!(decode(&encode(&envelope).unwrap()), Ok(envelope));
+        }
     }
 }
