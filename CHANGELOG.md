@@ -1,11 +1,5 @@
 # Changelog
 
-## Unreleased
-
-- Add bounded NMP/1 discovery advertisements and a deterministic, monotonic
-  discovery-hint table. Advertisements remain untrusted and never authorize or
-  automatically connect a peer.
-
 ## Unreleased — peer health and interoperability
 
 - Bounded peer registry with duplicate rejection, deterministic health transitions, and recovery.
