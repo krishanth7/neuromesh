@@ -28,6 +28,7 @@ The message uses `type` and, for data-bearing variants, `body`.
 | Ping | nonce | u64 |
 | Pong | nonce | u64; caller must match the outstanding probe |
 | GetPeers | absent | no payload |
+| Advertise | node, address, ttl_seconds, agent | untrusted endpoint; 1–300 second local-monotonic lifetime; agent at most 64 UTF-8 bytes with no control characters |
 | Peers | peers | At most 64 node/address hints; nonzero port; no unspecified/multicast addresses |
 | Error | code, detail | u16 code; at most 256 UTF-8 bytes; no control characters |
 
@@ -44,6 +45,13 @@ application identity must be bound to the TLS session and explicitly authorized;
 discovery advertisements never authorize a peer. No 0-RTT application work.
 HELLO occurs only after identity proof validation. Implementations must cap
 connection counts, concurrent streams, queues, and message rates.
+
+`Advertise` provides a bounded claim that can populate a local discovery table.
+Its lifetime is measured only with the receiving process's monotonic clock;
+remote timestamps are neither sent nor trusted. Expiry removes stale hints, but
+receiving an advertisement must not open a connection or register a peer. A
+candidate becomes a peer only after the existing authenticated QUIC flow and
+explicit authorization succeed.
 
 ## Errors and termination
 

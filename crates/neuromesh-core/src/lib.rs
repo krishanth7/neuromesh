@@ -3,6 +3,7 @@
 //! This crate contains no network I/O. Validate configuration before allocating
 //! resources or starting any listener.
 
+pub mod discovery;
 pub mod identity;
 pub mod lifecycle;
 pub mod peers;

@@ -25,12 +25,13 @@ project does not implement AGI, pretrained models, or hosted inference.
 | Resource boundaries | Connection caps, handshake deadlines, stream limits, bounded 64 KiB envelopes |
 | NMP/1 protocol | Versioned control messages, strict decoding, sender and request-ID checks |
 | Peer registry | Bounded membership, duplicate rejection, monotonic health transitions, explicit removal |
+| Discovery hints | Bounded NMP/1 advertisements and an expiring local hint table; no listeners or automatic connections |
 | Interoperability | 15 executable Ping encoders, Rust decoder validation, SQL reporting, Bash automation |
 | Measurement | Real localhost QUIC experiment with raw samples, commands, versions, and source hashes |
 
-**Status: experimental libraries and developer tooling.** Automatic discovery,
-heartbeat scheduling, adaptive routing, distributed task execution, and a live
-dashboard remain on the [roadmap](ROADMAP.md). There is no autonomous mesh CLI,
+**Status: experimental libraries and developer tooling.** LAN discovery transport,
+bootstrap policy, heartbeat scheduling, adaptive routing, distributed task execution,
+and a live dashboard remain on the [roadmap](ROADMAP.md). There is no autonomous mesh CLI,
 production deployment, or production-readiness claim.
 
 ## Quick start
@@ -122,6 +123,7 @@ provides bounded I/O; it does not silently start discovery or health timers.
 
 - [Transport design and limits](docs/architecture/0003-quic.md)
 - [Peer registry decisions](docs/architecture/0004-peer-registry.md)
+- [Discovery hint decisions](docs/architecture/0005-discovery-hints.md)
 - [NMP/1 specification](docs/protocol/NMP-1.md)
 
 ## 17 languages, explicit scope
@@ -142,7 +144,9 @@ Changes use substantive pull requests, recorded review findings, and CI validati
 The interoperability workflow requires every encoder and retains its per-case
 report. Missing runtimes fail the run; explicit local subsets are labeled.
 
-Review [SECURITY.md](SECURITY.md) before use. Test identities and ephemeral
+Review [SECURITY.md](SECURITY.md) before use. Discovery advertisements are
+untrusted endpoint claims; they never authorize a peer or start a connection.
+Test identities and ephemeral
 certificates are for localhost verification only. Never commit private keys,
 seeds, credentials, or real deployment secrets. Node IDs supplied to encoders
 are untrusted claims until authenticated by the transport.
