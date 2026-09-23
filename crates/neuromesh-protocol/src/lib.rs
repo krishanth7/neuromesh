@@ -1,5 +1,5 @@
 //! Bounded, versioned NMP/1 encoding. Authentication belongs to transport.
-use neuromesh_core::identity::NodeId;
+use neuromesh_core::{discovery::DiscoveryAdvertisement, identity::NodeId};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt,
@@ -44,6 +44,11 @@ pub enum Message {
     },
     /// Request peer discovery hints.
     GetPeers,
+    /// Untrusted, bounded LAN discovery advertisement.
+    Advertise {
+        /// Claimed endpoint and expiry hint; transport authentication remains required.
+        advertisement: DiscoveryAdvertisement,
+    },
     /// Bounded response of untrusted hints.
     Peers {
         /// At most MAX_HINTS peer advertisements.
@@ -118,6 +123,10 @@ impl Envelope {
                             && !p.address.ip().is_multicast()
                     })
             }
+            Message::Advertise { advertisement } => advertisement
+                .validate()
+                .map_err(|_| ProtocolError::Validation)
+                .is_ok(),
             Message::Error { detail, .. } => {
                 detail.len() <= 256 && !detail.chars().any(char::is_control)
             }
@@ -175,6 +184,14 @@ mod tests {
             Message::Ping { nonce: 42 },
             Message::Pong { nonce: 42 },
             Message::GetPeers,
+            Message::Advertise {
+                advertisement: DiscoveryAdvertisement {
+                    node: sender(),
+                    address: "127.0.0.1:4433".parse().unwrap(),
+                    ttl_seconds: 30,
+                    agent: "neuromesh".into(),
+                },
+            },
             Message::Peers {
                 peers: vec![PeerHint {
                     node: sender(),
@@ -212,6 +229,14 @@ mod tests {
                     node: sender(),
                     address: "0.0.0.0:0".parse().unwrap(),
                 }],
+            },
+            Message::Advertise {
+                advertisement: DiscoveryAdvertisement {
+                    node: sender(),
+                    address: "127.0.0.1:4433".parse().unwrap(),
+                    ttl_seconds: 0,
+                    agent: "neuromesh".into(),
+                },
             },
         ] {
             e.message = message;

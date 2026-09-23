@@ -44,8 +44,10 @@ as their requirements are investigated, not created solely to close them.
 
 ## Current state
 
-The current code includes foundation, identity/lifecycle, bounded protocol, and
-authenticated QUIC transport and the bounded peer registry. The autonomous mesh remains pending. The v0.1.0 foundation release is saved as a draft;
+The current code includes foundation, identity/lifecycle, bounded protocol,
+authenticated QUIC transport, a bounded peer registry, and bounded discovery
+advertisement primitives. LAN discovery transport and bootstrap policy remain
+pending. The autonomous mesh remains pending. The v0.1.0 foundation release is saved as a draft;
 publication remains pending. No releases have been published.
 
 ## Peer registry and interoperability update
@@ -54,3 +56,9 @@ The bounded peer registry and deterministic health policy are implemented as a c
 with an authenticated QUIC integration test. Automatic discovery, heartbeat scheduling,
 routing, tasks, and observability remain planned. The 17-language toolkit is an interoperability
 and reporting surface; it does not imply 17 implementations of the mesh runtime.
+
+## Discovery advertisement update
+
+NMP/1 now carries a bounded, untrusted `Advertise` message and the core library
+retains valid hints in a deterministic, expiring table. This is not a multicast
+listener, bootstrap implementation, connection manager, or authorization path.
