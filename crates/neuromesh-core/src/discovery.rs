@@ -226,7 +226,9 @@ mod tests {
         let mut table = table(t);
         table.observe(advertisement(2, 2), t).unwrap();
         assert_eq!(table.expire(t + Duration::from_secs(1)), Ok(0));
-        table.observe(advertisement(2, 3), t + Duration::from_secs(1)).unwrap();
+        table
+            .observe(advertisement(2, 3), t + Duration::from_secs(1))
+            .unwrap();
         assert_eq!(table.expire(t + Duration::from_secs(3)), Ok(0));
         assert_eq!(table.expire(t + Duration::from_secs(4)), Ok(1));
         assert!(table.is_empty());
@@ -236,17 +238,26 @@ mod tests {
     fn rejects_self_capacity_and_clock_regression_without_mutation() {
         let t = Instant::now();
         let mut table = table(t);
-        assert_eq!(table.observe(advertisement(1, 1), t), Err(DiscoveryError::SelfAdvertisement));
+        assert_eq!(
+            table.observe(advertisement(1, 1), t),
+            Err(DiscoveryError::SelfAdvertisement)
+        );
         table.observe(advertisement(2, 10), t).unwrap();
         table.observe(advertisement(3, 10), t).unwrap();
-        assert_eq!(table.observe(advertisement(4, 10), t), Err(DiscoveryError::Capacity));
+        assert_eq!(
+            table.observe(advertisement(4, 10), t),
+            Err(DiscoveryError::Capacity)
+        );
         let before = table.get(id(2)).unwrap().clone();
         assert_eq!(
             table.observe(advertisement(2, 10), t - Duration::from_secs(1)),
             Err(DiscoveryError::ClockRegression)
         );
         assert_eq!(table.get(id(2)), Some(&before));
-        assert_eq!(table.expire(t - Duration::from_secs(1)), Err(DiscoveryError::ClockRegression));
+        assert_eq!(
+            table.expire(t - Duration::from_secs(1)),
+            Err(DiscoveryError::ClockRegression)
+        );
         assert_eq!(table.len(), 2);
     }
 
