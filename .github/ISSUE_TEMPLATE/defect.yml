@@ -1,0 +1,60 @@
+name: Defect report
+description: Report a reproducible defect with observed and expected behavior
+title: "fix: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include private keys, credentials, network details, or exploit
+        details for unpatched vulnerabilities. Security issues belong in the
+        private reporting channel linked beside this form.
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or branch
+      description: The exact revision the defect reproduces on.
+      placeholder: 23449e3 or main
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Command sequence from a clean checkout, smallest that reproduces.
+      render: sh
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: Actual output, error, or misbehavior, sanitized.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What the contract, documentation, or test says should happen.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, architecture, and rustc version.
+      placeholder: Ubuntu 24.04 x86_64, rustc 1.99.1
+    validations:
+      required: true
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Checks
+      options:
+        - label: Existing issues searched
+          required: true
+        - label: Sanitized output only; no secrets, keys, or private addresses
+          required: true
+        - label: Not a security vulnerability (those go through private reporting)
+          required: true

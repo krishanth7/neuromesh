@@ -1,8 +1,12 @@
 # Contributing
 
-Start with an engineering issue describing context, the problem, acceptance
-criteria, tests, and documentation impact. Keep changes small enough for real
-review and use conventional commit titles where helpful.
+Start with an issue using the repository's defect or capability form
+describing context, the problem, acceptance criteria, tests, and documentation
+impact; security reports follow the private channel in SECURITY.md instead.
+Keep changes small enough for real review. Pull request titles must use a
+conventional type (`feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`,
+`build`, `ci`, `chore`, `revert`) with an all-lowercase subject; CI rejects
+titles that do not.
 
 Create a feature branch. Run the commands in the README, plus integration or
 failure tests relevant to your change. Include actual results in the PR body.

@@ -1,0 +1,60 @@
+name: Capability proposal
+description: Propose a capability, protocol change, or architecture improvement
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Start from the problem, not the implementation. Read the architecture
+        document in the repository first so the proposal fits the stated
+        crate boundaries and trust model.
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What situation in a real deployment or test rig creates this need today?
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: The concrete gap, including who is blocked and what fails.
+    validations:
+      required: true
+  - type: textarea
+    id: direction
+    attributes:
+      label: Proposed direction
+      description: Optional sketch; reviewers care about the contract, not the patch.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Testable conditions a reviewer can verify.
+      placeholder: |
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: testing
+    attributes:
+      label: Testing requirements
+      description: Which unit, integration, failure, or interop checks must accompany it.
+    validations:
+      required: true
+  - type: textarea
+    id: documentation
+    attributes:
+      label: Documentation impact
+      description: README, ADR, protocol, or security text that must change with the code.
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Checks
+      options:
+        - label: Existing issues and roadmap searched
+          required: true
+        - label: Boundaries and non-goals are stated honestly (no production-readiness claims)
+          required: true

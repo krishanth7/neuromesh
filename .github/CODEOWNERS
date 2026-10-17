@@ -1,0 +1,20 @@
+# Repository ownership.
+# Every path defaults to the maintainer; sensitive surfaces are called out so
+# reviewers know which files carry security or release consequences.
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+*       @krishanth7
+
+# Cryptography, transport trust, and protocol contracts.
+/crates/neuromesh-core/          @krishanth7
+/crates/neuromesh-network/       @krishanth7
+/crates/neuromesh-protocol/      @krishanth7
+/docs/protocol/                  @krishanth7
+/docs/architecture/              @krishanth7
+
+# Build, CI, dependency, and security policy surfaces.
+/.github/                        @krishanth7
+/Cargo.toml                      @krishanth7
+/Cargo.lock                      @krishanth7
+/SECURITY.md                     @krishanth7
+/rust-toolchain.toml             @krishanth7
