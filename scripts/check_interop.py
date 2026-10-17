@@ -1,6 +1,8 @@
 """Compile and verify 15 Ping encoders against shared cases and the Rust decoder.
 
-Missing runtimes fail the requested run. --languages supports an explicit subset;
+Missing runtimes fail the requested run before anything executes, with a
+per-language report of absent tools and the exact subset command that would
+run instead (exit status 2). --languages supports that explicit subset;
 reports always identify exactly what ran. SQL aggregates the actual results.
 """
 import argparse
@@ -9,6 +11,7 @@ import hashlib
 import json
 from pathlib import Path
 import platform
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -27,6 +30,30 @@ def checked(cmd):
     if result.returncode:
         raise RuntimeError(f"{cmd}: {result.stderr.decode(errors='replace')}")
     return result
+
+
+def missing_tools(languages):
+    """Map each requested language to the executables it needs that are not on PATH.
+
+    Artifacts produced by the build step (target-directory binaries) are not
+    required up front, so only invocable tools are checked.
+    """
+    missing = {}
+    for language in languages:
+        build, cmd, version = commands()[language]
+        required = []
+        for command in (build, version, cmd[:1]):
+            if not command:
+                continue
+            executable = str(command[0])
+            path = Path(executable)
+            if path.is_absolute() and (path.is_relative_to(CARGO_TARGET) or path.is_relative_to(BUILD)):
+                continue
+            required.append(executable)
+        absent = [tool for tool in dict.fromkeys(required) if shutil.which(tool) is None]
+        if absent:
+            missing[language] = absent
+    return missing
 
 
 def source_hashes():
@@ -75,6 +102,20 @@ def main():
     args = parser.parse_args()
     if len(args.languages) != len(set(args.languages)):
         parser.error("duplicate languages are not allowed")
+    missing = missing_tools(args.languages)
+    if missing:
+        print("ERROR: requested languages cannot run: required tools are missing from PATH.", file=sys.stderr)
+        for language in args.languages:
+            if language in missing:
+                print(f"  {language}: missing {', '.join(missing[language])}", file=sys.stderr)
+        available = [language for language in args.languages if language not in missing]
+        if available:
+            subset = " ".join(available)
+            print(f"Install the missing toolchains or run an explicit, labeled subset:", file=sys.stderr)
+            print(f"  python3 scripts/check_interop.py --languages {subset}", file=sys.stderr)
+        else:
+            print("  No requested language has a usable runtime on PATH.", file=sys.stderr)
+        return 2
     BUILD.mkdir(parents=True, exist_ok=True)
     checked(["cargo", "build", "--locked", "--target-dir", CARGO_TARGET, "-p", "neuromesh-protocol", "--examples"])
     oracle = CARGO_TARGET / "debug/examples/check_envelope"
