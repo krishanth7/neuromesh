@@ -261,6 +261,116 @@ mod tests {
         }
     }
     #[test]
+    fn truncated_frames_are_rejected_at_every_split_point() {
+        let bytes = encode(&Envelope::new(
+            sender(),
+            7,
+            Message::Hello {
+                agent: "neuromesh-suite".into(),
+            },
+        ))
+        .unwrap();
+        for split in 0..bytes.len() {
+            assert!(
+                decode(&bytes[..split]).is_err(),
+                "prefix of length {split} must not decode"
+            );
+        }
+        assert_eq!(
+            decode(&bytes),
+            Ok(Envelope::new(
+                sender(),
+                7,
+                Message::Hello {
+                    agent: "neuromesh-suite".into(),
+                },
+            ))
+        );
+    }
+
+    #[test]
+    fn single_byte_corruptions_never_panic_the_decoder() {
+        let bytes = encode(&Envelope::new(sender(), 9, Message::GetPeers)).unwrap();
+        for index in 0..bytes.len() {
+            let mut corrupted = bytes.clone();
+            corrupted[index] ^= 0xFF;
+            // Any outcome (accept or reject) is legal; panicking or hanging is not.
+            let _ = decode(&corrupted);
+        }
+        // Wholesale noise must also fail closed rather than panic or allocate wildly.
+        let noise: Vec<u8> = (0..MAX_FRAME).map(|i| (i % 251) as u8).collect();
+        let _ = decode(&noise);
+    }
+
+    #[test]
+    fn recursion_overflow_and_invalid_utf8_fail_closed() {
+        // Deeper than Serde's JSON recursion limit, comfortably inside MAX_FRAME.
+        let mut nested = vec![b'['; 4096];
+        nested.extend(std::iter::repeat_n(b']', 4096));
+        assert_eq!(decode(&nested), Err(ProtocolError::Encoding));
+
+        // Splice an invalid UTF-8 byte into an otherwise valid envelope string.
+        let mut bytes = encode(&Envelope::new(
+            sender(),
+            1,
+            Message::Hello {
+                agent: "decode-me".into(),
+            },
+        ))
+        .unwrap();
+        let position = bytes.windows(2).position(|window| window == b"de").unwrap();
+        bytes[position + 1] = 0xFF;
+        assert_eq!(decode(&bytes), Err(ProtocolError::Encoding));
+    }
+
+    #[test]
+    fn unknown_message_types_and_nested_unknown_fields_fail_closed() {
+        let identity = sender().to_string();
+        let envelope = |message: &str| {
+            format!(
+                "{{\"version\":1,\"message_id\":5,\"sender\":\"{identity}\",\"message\":{message}}}"
+            )
+        };
+        let cases = [
+            // Unknown message variant.
+            envelope(r#"{"type":"Trace","body":{}}"#),
+            // Unknown field nested inside a known variant body.
+            envelope(r#"{"type":"Ping","body":{"nonce":1,"ttl":9}}"#),
+            // Unknown envelope-level field next to the known ones.
+            format!(
+                "{{\"version\":1,\"message_id\":5,\"sender\":\"{identity}\",\"message\":{{\"type\":\"GetPeers\"}},\"routes\":[]}}"
+            ),
+            // Duplicate envelope-level field.
+            format!(
+                "{{\"version\":1,\"version\":1,\"message_id\":5,\"sender\":\"{identity}\",\"message\":{{\"type\":\"GetPeers\"}}}}"
+            ),
+        ];
+        for input in cases {
+            assert_eq!(
+                decode(input.as_bytes()),
+                Err(ProtocolError::Encoding),
+                "input: {input}"
+            );
+        }
+    }
+
+    #[test]
+    fn frame_and_nonce_boundaries_are_exact() {
+        assert_eq!(decode(b""), Err(ProtocolError::FrameSize));
+        assert_eq!(
+            decode(&vec![b' '; MAX_FRAME + 1]),
+            Err(ProtocolError::FrameSize)
+        );
+        // A frame at the hard ceiling is attempted, not pre-judged on size.
+        assert_eq!(decode(&vec![b' '; MAX_FRAME]), Err(ProtocolError::Encoding));
+
+        for nonce in [u64::MIN, u64::MAX, 9_007_199_254_740_993] {
+            let envelope = Envelope::new(sender(), 1, Message::Ping { nonce });
+            assert_eq!(decode(&encode(&envelope).unwrap()).unwrap(), envelope);
+        }
+    }
+
+    #[test]
     fn bounded_writer_refuses_to_grow_past_limit() {
         let mut w = Bounded(vec![0; MAX_FRAME]);
         assert!(w.write_all(&[1]).is_err());
