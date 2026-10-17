@@ -16,7 +16,7 @@ use std::{
     net::SocketAddr,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc,
+        Arc, Mutex,
     },
     time::Duration,
 };
@@ -244,6 +244,26 @@ async fn authenticate(
     Ok(peer)
 }
 
+/// Condition under which a session's connection closed, without transport internals.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CloseReport {
+    /// Application close code. From the peer when `local` is `false`, otherwise
+    /// the code this session passed to [`Session::close`] if it closed first.
+    pub code: u32,
+    /// Application close reason bytes; empty for non-application closures.
+    pub reason: Vec<u8>,
+    /// Whether the closure originated locally instead of from the peer.
+    pub local: bool,
+}
+
+/// Validate an application close reason without emitting it in errors.
+fn checked_reason(reason: &str) -> Result<&[u8], TransportError> {
+    if reason.len() > 127 {
+        return Err(invalid("close reason exceeds 127 bytes"));
+    }
+    Ok(reason.as_bytes())
+}
+
 /// One authenticated session; request operations are serialized for replay ordering.
 /// Dropping it closes the connection and releases its endpoint capacity permit.
 pub struct Session {
@@ -254,6 +274,7 @@ pub struct Session {
     operation: Semaphore,
     _permit: OwnedSemaphorePermit,
     initiator: bool,
+    local_close: Mutex<Option<(u32, Vec<u8>)>>,
 }
 impl Session {
     fn new(
@@ -271,11 +292,71 @@ impl Session {
             operation: Semaphore::new(1),
             _permit: permit,
             initiator,
+            local_close: Mutex::new(None),
         }
     }
     /// Authenticated remote identity.
     pub fn peer(&self) -> NodeId {
         self.peer
+    }
+    /// Close this connection explicitly with an application error code and reason.
+    ///
+    /// The peer observes the pair through [`Session::wait_closed`]. Application
+    /// close reasons are bounded to 127 UTF-8 bytes so one datagram carries the
+    /// whole notification; longer reasons are rejected without touching the
+    /// connection, and the reason bytes are never logged by this crate.
+    pub fn close(&self, code: u32, reason: &str) -> Result<(), TransportError> {
+        let reason = checked_reason(reason)?;
+        *self
+            .local_close
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some((code, reason.to_vec()));
+        self.connection.close(code.into(), reason);
+        Ok(())
+    }
+    /// Whether close has begun at either end (local call, peer notice, or timeout).
+    pub fn is_closed(&self) -> bool {
+        self.connection.close_reason().is_some()
+    }
+    /// Wait for the connection to close and report what both ends agreed on.
+    ///
+    /// An application close from the peer yields its code and reason with
+    /// `local == false`. A local [`Session::close`] yields the code and reason
+    /// this session sent, with `local == true`. Transport-level closures
+    /// (timeout, reset) report code 0, an empty reason, and `local == false`;
+    /// transport-internal details are never exposed.
+    pub async fn wait_closed(&self) -> CloseReport {
+        let error = self.connection.closed().await;
+        match error {
+            quinn::ConnectionError::ApplicationClosed(close) => CloseReport {
+                code: u32::try_from(close.error_code.into_inner()).unwrap_or(u32::MAX),
+                reason: close.reason.to_vec(),
+                local: false,
+            },
+            quinn::ConnectionError::LocallyClosed => {
+                let stored = self
+                    .local_close
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                match stored.as_ref() {
+                    Some((code, reason)) => CloseReport {
+                        code: *code,
+                        reason: reason.clone(),
+                        local: true,
+                    },
+                    None => CloseReport {
+                        code: 0,
+                        reason: Vec::new(),
+                        local: true,
+                    },
+                }
+            }
+            _ => CloseReport {
+                code: 0,
+                reason: Vec::new(),
+                local: false,
+            },
+        }
     }
     /// Send a message and receive its matching response; only connection initiators may call.
     pub async fn request(
@@ -374,6 +455,20 @@ async fn read_frame(recv: &mut RecvStream) -> Result<Envelope, TransportError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn close_reason_boundaries_accept_short_and_multibyte_reject_long() {
+        assert!(checked_reason("").is_ok());
+        assert!(checked_reason("draining for maintenance").is_ok());
+        // 31 four-byte characters = 124 bytes, inside the bound.
+        assert!(checked_reason("\u{1f600}".repeat(31).as_str()).is_ok());
+        // 32 four-byte characters = 128 bytes, over the bound.
+        assert!(checked_reason("\u{1f600}".repeat(32).as_str()).is_err());
+        assert!(checked_reason(&"x".repeat(127)).is_ok());
+        assert!(checked_reason(&"x".repeat(128)).is_err());
+        let error = checked_reason(&"x".repeat(200)).unwrap_err().to_string();
+        // The error must carry only the static bound, never reason bytes.
+        assert_eq!(error, "close reason exceeds 127 bytes");
+    }
     #[test]
     fn proofs_reject_other_sessions_roles_and_untrusted_keys() {
         let identity = Identity::from_seed(&[7; 32]);

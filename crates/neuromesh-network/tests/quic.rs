@@ -175,6 +175,36 @@ async fn allowlisted_but_wrong_expected_identity_is_rejected() {
 }
 
 #[tokio::test]
+async fn explicit_close_reaches_the_peer_with_code_and_reason() {
+    let (a, b) = endpoints(false);
+    let server = b.clone();
+    let (connected_tx, connected_rx) = tokio::sync::oneshot::channel();
+    let worker = tokio::spawn(async move {
+        let session = server.accept().await.unwrap();
+        // Close only after the requester finished its own authentication.
+        connected_rx.await.unwrap();
+        session.close(42, "maintenance window").unwrap();
+        assert!(session.is_closed());
+        session
+    });
+    let session = a
+        .connect(b.local_addr().unwrap(), "mesh.test", b.node_id())
+        .await
+        .unwrap();
+    connected_tx.send(()).unwrap();
+    let report = tokio::time::timeout(Duration::from_secs(5), session.wait_closed())
+        .await
+        .unwrap();
+    assert_eq!(report.code, 42);
+    assert_eq!(report.reason, b"maintenance window".to_vec());
+    assert!(!report.local);
+    assert!(session.is_closed());
+    let _ = worker.await.unwrap();
+    a.close();
+    b.close();
+}
+
+#[tokio::test]
 async fn authenticated_sessions_register_and_duplicate_identity_is_rejected() {
     use neuromesh_core::peers::{Health, PeerError, PeerRegistry};
     use std::time::Instant;
