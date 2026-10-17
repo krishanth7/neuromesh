@@ -1,6 +1,6 @@
 //! Real localhost QUIC integration tests with ephemeral test-only certificates.
 use neuromesh_core::identity::Identity;
-use neuromesh_network::MeshEndpoint;
+use neuromesh_network::{EndpointMetrics, MeshEndpoint};
 use neuromesh_protocol::Message;
 use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
@@ -48,6 +48,27 @@ async fn real_quic_identity_ping_and_graceful_close() {
         .await
         .unwrap()
         .is_err());
+    // One dial, one accepted session, three successful exchanges per side,
+    // and exactly one explicit close each; no failures were observed.
+    assert_eq!(
+        a.metrics(),
+        EndpointMetrics {
+            outbound_attempts: 1,
+            outbound_connected: 1,
+            exchanges_succeeded: 3,
+            local_closes: 1,
+            ..EndpointMetrics::default()
+        }
+    );
+    assert_eq!(
+        b.metrics(),
+        EndpointMetrics {
+            inbound_accepted: 1,
+            exchanges_succeeded: 3,
+            local_closes: 1,
+            ..EndpointMetrics::default()
+        }
+    );
 }
 #[tokio::test]
 async fn untrusted_certificate_is_rejected() {
@@ -59,6 +80,10 @@ async fn untrusted_certificate_is_rejected() {
         .await
         .is_err());
     assert!(worker.await.unwrap().is_err());
+    let metrics = a.metrics();
+    assert_eq!(metrics.outbound_attempts, 1);
+    assert_eq!(metrics.outbound_connected, 0);
+    assert!(metrics.connect_failed >= 1);
     a.close();
     b.close();
 }
@@ -110,6 +135,7 @@ async fn connection_cap_releases_when_session_drops() {
         .connect(b.local_addr().unwrap(), "mesh.test", b.node_id())
         .await
         .is_err());
+    assert!(a.metrics().connect_failed >= 1);
     drop((first, second));
     done_tx.send(()).unwrap();
     worker.await.unwrap();

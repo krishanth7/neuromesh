@@ -30,6 +30,68 @@ fn invalid(reason: &'static str) -> TransportError {
     std::io::Error::new(std::io::ErrorKind::InvalidData, reason).into()
 }
 
+/// Point-in-time counters for one endpoint.
+///
+/// Counting is advisory telemetry, not an audit log: increments use relaxed
+/// atomic ordering and each snapshot is an independent copy, so counters are
+/// cheap enough to scrape on every metrics collection. No counter touches key
+/// material, frame contents, or peer addresses.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct EndpointMetrics {
+    /// Dial attempts that passed the identity allowlist check.
+    pub outbound_attempts: u64,
+    /// Dials that completed mutual authentication and produced a session.
+    pub outbound_connected: u64,
+    /// Inbound connections that completed mutual authentication.
+    pub inbound_accepted: u64,
+    /// Dial failures: endpoint state, certificate or hostname mismatch, or deadline.
+    pub connect_failed: u64,
+    /// Inbound connections refused before handshake because the cap was reached.
+    pub refused_capacity: u64,
+    /// Handshakes rejected by deadline, certificate material, proof, allowlist, or identity mismatch.
+    pub handshake_rejected: u64,
+    /// Request/response exchanges completed successfully from either role's perspective.
+    pub exchanges_succeeded: u64,
+    /// Exchanges rejected or timed out from either role's perspective.
+    pub exchanges_failed: u64,
+    /// Explicit [`MeshEndpoint::close`] invocations on this endpoint.
+    pub local_closes: u64,
+}
+
+/// Shared atomic counters behind an [`EndpointMetrics`] snapshot.
+#[derive(Debug, Default)]
+struct Counters {
+    outbound_attempts: AtomicU64,
+    outbound_connected: AtomicU64,
+    inbound_accepted: AtomicU64,
+    connect_failed: AtomicU64,
+    refused_capacity: AtomicU64,
+    handshake_rejected: AtomicU64,
+    exchanges_succeeded: AtomicU64,
+    exchanges_failed: AtomicU64,
+    local_closes: AtomicU64,
+}
+
+impl Counters {
+    fn incremented(counter: &AtomicU64) {
+        counter.fetch_add(1, Ordering::Relaxed);
+    }
+    fn snapshot(&self) -> EndpointMetrics {
+        let read = |counter: &AtomicU64| counter.load(Ordering::Relaxed);
+        EndpointMetrics {
+            outbound_attempts: read(&self.outbound_attempts),
+            outbound_connected: read(&self.outbound_connected),
+            inbound_accepted: read(&self.inbound_accepted),
+            connect_failed: read(&self.connect_failed),
+            refused_capacity: read(&self.refused_capacity),
+            handshake_rejected: read(&self.handshake_rejected),
+            exchanges_succeeded: read(&self.exchanges_succeeded),
+            exchanges_failed: read(&self.exchanges_failed),
+            local_closes: read(&self.local_closes),
+        }
+    }
+}
+
 /// TLS credentials. The private key intentionally has no debug/serialization wrapper.
 pub struct Credentials {
     /// Certificate chain for this endpoint.
@@ -46,6 +108,7 @@ pub struct MeshEndpoint {
     identity: Arc<Identity>,
     allowed: Arc<BTreeSet<NodeId>>,
     permits: Arc<Semaphore>,
+    counters: Arc<Counters>,
 }
 impl MeshEndpoint {
     /// Bind QUIC with mandatory peer certificates and an explicit identity allowlist.
@@ -101,6 +164,7 @@ impl MeshEndpoint {
             identity: Arc::new(identity),
             allowed: Arc::new(allowed),
             permits: Arc::new(Semaphore::new(max_connections)),
+            counters: Arc::new(Counters::default()),
         })
     }
     /// Bound UDP address, including an OS-selected port when zero was requested.
@@ -121,9 +185,32 @@ impl MeshEndpoint {
         if !self.allowed.contains(&expected) {
             return Err(invalid("identity not authorized"));
         }
-        let permit = self.permits.clone().try_acquire_owned()?;
-        let connection =
-            tokio::time::timeout(DEADLINE, self.endpoint.connect(address, server_name)?).await??;
+        Counters::incremented(&self.counters.outbound_attempts);
+        let permit = match self.permits.clone().try_acquire_owned() {
+            Ok(permit) => permit,
+            Err(error) => {
+                Counters::incremented(&self.counters.connect_failed);
+                return Err(error.into());
+            }
+        };
+        let connecting = match self.endpoint.connect(address, server_name) {
+            Ok(connecting) => connecting,
+            Err(error) => {
+                Counters::incremented(&self.counters.connect_failed);
+                return Err(error.into());
+            }
+        };
+        let connection = match tokio::time::timeout(DEADLINE, connecting).await {
+            Ok(Ok(connection)) => connection,
+            Ok(Err(error)) => {
+                Counters::incremented(&self.counters.connect_failed);
+                return Err(error.into());
+            }
+            Err(error) => {
+                Counters::incremented(&self.counters.connect_failed);
+                return Err(error.into());
+            }
+        };
         match tokio::time::timeout(
             DEADLINE,
             authenticate(&connection, &self.identity, &self.allowed, true),
@@ -131,9 +218,18 @@ impl MeshEndpoint {
         .await
         {
             Ok(Ok(peer)) if peer == expected => {
-                Ok(Session::new(connection, self.node_id(), peer, permit, true))
+                Counters::incremented(&self.counters.outbound_connected);
+                Ok(Session::new(
+                    connection,
+                    self.node_id(),
+                    peer,
+                    permit,
+                    true,
+                    self.counters.clone(),
+                ))
             }
             _ => {
+                Counters::incremented(&self.counters.handshake_rejected);
                 connection.close(1u32.into(), b"identity rejected");
                 Err(invalid("identity handshake failed"))
             }
@@ -149,25 +245,41 @@ impl MeshEndpoint {
         let permit = match self.permits.clone().try_acquire_owned() {
             Ok(p) => p,
             Err(_) => {
+                Counters::incremented(&self.counters.refused_capacity);
                 incoming.refuse();
                 return Err(invalid("connection limit"));
             }
         };
-        let connection = tokio::time::timeout(DEADLINE, incoming).await??;
+        let connection = match tokio::time::timeout(DEADLINE, incoming).await {
+            Ok(Ok(connection)) => connection,
+            Ok(Err(error)) => {
+                Counters::incremented(&self.counters.handshake_rejected);
+                return Err(error.into());
+            }
+            Err(error) => {
+                Counters::incremented(&self.counters.handshake_rejected);
+                return Err(error.into());
+            }
+        };
         match tokio::time::timeout(
             DEADLINE,
             authenticate(&connection, &self.identity, &self.allowed, false),
         )
         .await
         {
-            Ok(Ok(peer)) => Ok(Session::new(
-                connection,
-                self.node_id(),
-                peer,
-                permit,
-                false,
-            )),
+            Ok(Ok(peer)) => {
+                Counters::incremented(&self.counters.inbound_accepted);
+                Ok(Session::new(
+                    connection,
+                    self.node_id(),
+                    peer,
+                    permit,
+                    false,
+                    self.counters.clone(),
+                ))
+            }
             _ => {
+                Counters::incremented(&self.counters.handshake_rejected);
                 connection.close(1u32.into(), b"identity rejected");
                 Err(invalid("identity handshake failed"))
             }
@@ -175,7 +287,12 @@ impl MeshEndpoint {
     }
     /// Close every connection and stop accepting work.
     pub fn close(&self) {
+        Counters::incremented(&self.counters.local_closes);
         self.endpoint.close(0u32.into(), b"shutdown");
+    }
+    /// Independent copy of this endpoint's counters for metrics collection.
+    pub fn metrics(&self) -> EndpointMetrics {
+        self.counters.snapshot()
     }
 }
 
@@ -254,6 +371,7 @@ pub struct Session {
     operation: Semaphore,
     _permit: OwnedSemaphorePermit,
     initiator: bool,
+    counters: Arc<Counters>,
 }
 impl Session {
     fn new(
@@ -262,6 +380,7 @@ impl Session {
         peer: NodeId,
         permit: OwnedSemaphorePermit,
         initiator: bool,
+        counters: Arc<Counters>,
     ) -> Self {
         Self {
             connection,
@@ -271,6 +390,7 @@ impl Session {
             operation: Semaphore::new(1),
             _permit: permit,
             initiator,
+            counters,
         }
     }
     /// Authenticated remote identity.
@@ -303,8 +423,12 @@ impl Session {
         })
         .await;
         match result {
-            Ok(Ok(response)) => Ok(response),
+            Ok(Ok(response)) => {
+                Counters::incremented(&self.counters.exchanges_succeeded);
+                Ok(response)
+            }
             _ => {
+                Counters::incremented(&self.counters.exchanges_failed);
                 self.connection.close(2u32.into(), b"request failed");
                 Err(invalid("request failed or timed out"))
             }
@@ -332,8 +456,12 @@ impl Session {
         })
         .await;
         match result {
-            Ok(Ok(())) => Ok(()),
+            Ok(Ok(())) => {
+                Counters::incremented(&self.counters.exchanges_succeeded);
+                Ok(())
+            }
             _ => {
+                Counters::incremented(&self.counters.exchanges_failed);
                 self.connection.close(2u32.into(), b"request rejected");
                 Err(invalid("request rejected or timed out"))
             }
@@ -374,6 +502,31 @@ async fn read_frame(recv: &mut RecvStream) -> Result<Envelope, TransportError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn metrics_snapshots_are_stable_copies_that_default_to_zero() {
+        assert_eq!(
+            EndpointMetrics::default(),
+            EndpointMetrics {
+                ..Default::default()
+            }
+        );
+        let counters = Counters::default();
+        Counters::incremented(&counters.outbound_attempts);
+        Counters::incremented(&counters.exchanges_succeeded);
+        Counters::incremented(&counters.exchanges_succeeded);
+        let snapshot = counters.snapshot();
+        assert_eq!(
+            snapshot,
+            EndpointMetrics {
+                outbound_attempts: 1,
+                exchanges_succeeded: 2,
+                ..EndpointMetrics::default()
+            }
+        );
+        Counters::incremented(&counters.exchanges_succeeded);
+        assert_eq!(snapshot.exchanges_succeeded, 2);
+        assert_eq!(counters.snapshot().exchanges_succeeded, 3);
+    }
     #[test]
     fn proofs_reject_other_sessions_roles_and_untrusted_keys() {
         let identity = Identity::from_seed(&[7; 32]);
