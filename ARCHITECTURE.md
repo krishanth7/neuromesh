@@ -46,9 +46,20 @@ connection and operation timeouts, and document denial-of-service limitations.
 See [ADR 0001](docs/architecture/0001-foundation.md). Later security-sensitive
 protocol decisions require their own rationale and tests before release.
 
+## Observability
+
+Read-only aggregate counters, stable error labels shared with the NMP/1 wire
+categories, classified request failures, and explicit close reports follow the
+[bounded telemetry decision](docs/architecture/0005-observability.md). The
+library emits no log lines of its own, ships no per-peer time series, and never
+places key material, frame bytes, addresses, or identities into a metric label
+or error message.
+
 ## Peer state and interoperability
 
 The [peer registry decision](docs/architecture/0004-peer-registry.md) defines bounded,
-explicit health tracking above authenticated sessions. The [interoperability toolkit](interop/README.md)
+explicit health tracking above authenticated sessions, and the
+[observability decision](docs/architecture/0005-observability.md) governs the
+diagnostics those sessions and that registry expose. The [interoperability toolkit](interop/README.md)
 provides Ping encoders in 15 languages plus SQL reporting and Bash automation;
 the secure network implementation remains in Rust.
