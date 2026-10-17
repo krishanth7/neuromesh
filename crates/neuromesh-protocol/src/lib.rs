@@ -103,6 +103,11 @@ pub struct Envelope {
     pub message: Message,
 }
 /// Rejected input category; raw payloads are never embedded in errors.
+///
+/// The lowercase [`ProtocolError::code`] tokens and the numeric
+/// [`ProtocolError::wire_code`] categories are stable identifiers for logs,
+/// metrics labels, and outbound [`Message::Error`] values; they are not part
+/// of the encoded envelope and never disclose payload contents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProtocolError {
     /// Frame exceeds hard byte limit or is empty.
@@ -114,9 +119,36 @@ pub enum ProtocolError {
     /// Invalid message identifier or payload bound.
     Validation,
 }
+impl ProtocolError {
+    /// Stable lowercase identifier for structured logs and metrics labels.
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::FrameSize => "frame-size",
+            Self::Encoding => "encoding",
+            Self::Version => "version",
+            Self::Validation => "validation",
+        }
+    }
+    /// Numeric category for [`Message::Error::code`] without payload detail.
+    ///
+    /// | Variant | Wire code |
+    /// |---|---:|
+    /// | [`ProtocolError::FrameSize`] | 1 |
+    /// | [`ProtocolError::Encoding`] | 2 |
+    /// | [`ProtocolError::Version`] | 3 |
+    /// | [`ProtocolError::Validation`] | 4 |
+    pub const fn wire_code(self) -> u16 {
+        match self {
+            Self::FrameSize => 1,
+            Self::Encoding => 2,
+            Self::Version => 3,
+            Self::Validation => 4,
+        }
+    }
+}
 impl fmt::Display for ProtocolError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "NMP/1 rejected message: {self:?}")
+        write!(f, "NMP/1 rejected message: {}", self.code())
     }
 }
 impl std::error::Error for ProtocolError {}
@@ -258,6 +290,27 @@ mod tests {
         for prefix in ["\"extra\":1,", "\"version\":1,"] {
             let invalid = format!("{{{prefix}{}", &valid[1..]);
             assert_eq!(decode(invalid.as_bytes()), Err(ProtocolError::Encoding));
+        }
+    }
+    #[test]
+    fn error_codes_wire_categories_and_display_are_stable() {
+        let all = [
+            ProtocolError::FrameSize,
+            ProtocolError::Encoding,
+            ProtocolError::Version,
+            ProtocolError::Validation,
+        ];
+        let codes: Vec<_> = all.iter().map(|error| error.code()).collect();
+        assert_eq!(codes, ["frame-size", "encoding", "version", "validation"]);
+        let wire: Vec<_> = all.iter().map(|error| error.wire_code()).collect();
+        assert_eq!(wire, [1, 2, 3, 4]);
+        let unique: std::collections::BTreeSet<_> = wire.iter().collect();
+        assert_eq!(unique.len(), all.len());
+        for error in all {
+            assert_eq!(
+                error.to_string(),
+                format!("NMP/1 rejected message: {}", error.code())
+            );
         }
     }
     #[test]

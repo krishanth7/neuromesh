@@ -52,6 +52,23 @@ payloads. A transport should terminate malformed or unauthenticated streams and
 close sessions that violate identity/version contracts. Sanitized Error messages
 may report expected application failures; never include secrets or raw internals.
 
+### Reserved error codes
+
+`Message::Error.code` uses these categories in this revision. Code 0 is
+reserved for "unspecified"; receivers that meet an unknown code must treat it
+as a generic application error and must not introspect `detail` for meaning.
+
+| Code | Category | Rejected input |
+|---:|---|---|
+| 1 | frame-size | Empty frame or frame above the 64 KiB ceiling |
+| 2 | encoding | Malformed JSON, unknown or duplicate fields, invalid shape |
+| 3 | version | Unsupported NMP wire version |
+| 4 | validation | Semantic bound violated (message ID, agent label, detail length, peer hints) |
+
+The Rust reference implementation exposes the same categories as
+`ProtocolError::wire_code()` (numeric) and `ProtocolError::code()` (stable
+lowercase label for logs and metrics). The labels are not transmitted.
+
 ## Compatibility and future extensions
 
 Routing metadata, distributed task messages, retry generations, and topology

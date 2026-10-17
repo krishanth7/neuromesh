@@ -42,9 +42,25 @@ pub enum PeerError {
     /// Time moved backwards relative to a prior operation.
     ClockRegression,
 }
+impl PeerError {
+    /// Stable lowercase identifier for structured logs and metrics labels.
+    ///
+    /// The token is part of this crate's observable contract: renames are
+    /// breaking changes for dashboards that grep or label on it.
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::Configuration => "configuration",
+            Self::SelfPeer => "self-peer",
+            Self::Duplicate => "duplicate",
+            Self::Capacity => "capacity",
+            Self::Unknown => "unknown",
+            Self::ClockRegression => "clock-regression",
+        }
+    }
+}
 impl fmt::Display for PeerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "peer registry: {self:?}")
+        write!(f, "peer registry: {}", self.code())
     }
 }
 impl std::error::Error for PeerError {}
@@ -248,6 +264,36 @@ mod tests {
         );
         assert_eq!(r.get(id(2)), before);
         r.observe(id(2), t + Duration::from_secs(5)).unwrap();
+    }
+    #[test]
+    fn error_codes_and_display_are_stable_unique_and_total() {
+        let all = [
+            PeerError::Configuration,
+            PeerError::SelfPeer,
+            PeerError::Duplicate,
+            PeerError::Capacity,
+            PeerError::Unknown,
+            PeerError::ClockRegression,
+        ];
+        let codes: Vec<_> = all.iter().map(|error| error.code()).collect();
+        assert_eq!(
+            codes,
+            [
+                "configuration",
+                "self-peer",
+                "duplicate",
+                "capacity",
+                "unknown",
+                "clock-regression",
+            ]
+        );
+        let unique: std::collections::BTreeSet<_> = codes.iter().collect();
+        assert_eq!(unique.len(), all.len());
+        for error in all {
+            let rendered = error.to_string();
+            assert!(rendered.starts_with("peer registry: "));
+            assert!(rendered.ends_with(error.code()));
+        }
     }
     #[test]
     fn snapshots_have_stable_order_and_removal_is_idempotent() {
