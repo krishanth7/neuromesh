@@ -250,6 +250,150 @@ mod tests {
         r.observe(id(2), t + Duration::from_secs(5)).unwrap();
     }
     #[test]
+    fn health_moves_only_at_declared_thresholds_across_fractional_ticks() {
+        let t = Instant::now();
+        let mut r = registry(t);
+        r.register(id(2), t).unwrap();
+        // Strictly inside the suspect threshold: nothing may change.
+        assert_eq!(r.tick(t + Duration::from_millis(1999)), Ok(0));
+        assert_eq!(r.get(id(2)).unwrap().health, Health::Healthy);
+        // Strictly inside the failure threshold: one transition only.
+        assert_eq!(r.tick(t + Duration::from_millis(4999)), Ok(1));
+        assert_eq!(r.get(id(2)).unwrap().health, Health::Suspect);
+        // Re-ticking at the same instant is idempotent.
+        assert_eq!(r.tick(t + Duration::from_millis(4999)), Ok(0));
+        assert_eq!(r.get(id(2)).unwrap().health, Health::Suspect);
+        // Exactly at the failure threshold the peer becomes unavailable.
+        assert_eq!(r.tick(t + Duration::from_secs(5)), Ok(1));
+        assert_eq!(r.get(id(2)).unwrap().health, Health::Unavailable);
+        // Fractional time never regresses the machine.
+        assert_eq!(
+            r.tick(t + Duration::from_millis(4999)),
+            Err(PeerError::ClockRegression)
+        );
+        assert_eq!(r.get(id(2)).unwrap().health, Health::Unavailable);
+    }
+
+    #[test]
+    fn observe_refreshes_only_the_addressed_peer() {
+        let t = Instant::now();
+        let mut r =
+            PeerRegistry::new(id(1), 3, Duration::from_secs(2), Duration::from_secs(5), t).unwrap();
+        r.register(id(2), t).unwrap();
+        r.register(id(3), t).unwrap();
+        r.register(id(4), t).unwrap();
+        r.tick(t + Duration::from_secs(3)).unwrap(); // all suspect
+        r.observe(id(2), t + Duration::from_secs(3)).unwrap();
+        assert_eq!(r.get(id(2)).unwrap().health, Health::Healthy);
+        assert_eq!(r.get(id(2)).unwrap().last_seen, t + Duration::from_secs(3));
+        // Neighbours are untouched: same timestamps, still suspect.
+        assert_eq!(r.get(id(3)).unwrap().last_seen, t);
+        assert_eq!(r.get(id(4)).unwrap().last_seen, t);
+        assert_eq!(r.get(id(3)).unwrap().health, Health::Suspect);
+        assert_eq!(r.get(id(4)).unwrap().health, Health::Suspect);
+    }
+
+    #[test]
+    fn reregistration_after_removal_starts_fresh_state_for_that_identity() {
+        let t = Instant::now();
+        let mut r = registry(t);
+        r.register(id(2), t).unwrap();
+        r.tick(t + Duration::from_secs(5)).unwrap();
+        assert_eq!(r.get(id(2)).unwrap().health, Health::Unavailable);
+        r.remove(id(2));
+        assert!(r.is_empty());
+        // A fresh registration must not inherit the removed peer's history.
+        let rejoined = t + Duration::from_secs(6);
+        r.register(id(2), rejoined).unwrap();
+        assert_eq!(r.get(id(2)).unwrap().health, Health::Healthy);
+        assert_eq!(r.get(id(2)).unwrap().last_seen, rejoined);
+        assert_eq!(r.tick(rejoined), Ok(0));
+    }
+
+    #[test]
+    fn capacity_one_registry_enforces_the_single_slot_exactly() {
+        let t = Instant::now();
+        let mut r =
+            PeerRegistry::new(id(1), 1, Duration::from_secs(2), Duration::from_secs(5), t).unwrap();
+        assert!(r.is_empty());
+        r.register(id(2), t).unwrap();
+        assert_eq!(r.len(), 1);
+        assert_eq!(r.register(id(3), t), Err(PeerError::Capacity));
+        assert_eq!(r.register(id(2), t), Err(PeerError::Duplicate));
+        assert_eq!(r.register(id(1), t), Err(PeerError::SelfPeer));
+        // Capacity checks precede no other state change: timestamps are intact.
+        assert_eq!(r.get(id(2)).unwrap().last_seen, t);
+        r.remove(id(2));
+        r.register(id(3), t + Duration::from_secs(1)).unwrap();
+        assert_eq!(r.len(), 1);
+        assert!(!r.is_empty());
+    }
+
+    #[test]
+    fn length_invariants_hold_through_scripted_churn() {
+        let t = Instant::now();
+        let mut r =
+            PeerRegistry::new(id(1), 4, Duration::from_secs(1), Duration::from_secs(2), t).unwrap();
+        let mut now = t;
+        let mut inserted = 0usize;
+        for step in 0..40 {
+            now += Duration::from_millis(17);
+            let candidate = 2 + (step % 8) as u8;
+            if step % 3 == 0 {
+                r.remove(id(candidate));
+            } else if r.register(id(candidate), now).is_ok() {
+                inserted += 1;
+            }
+            assert!(r.len() <= 4, "len exceeded capacity at step {step}");
+            assert!(r.peers().count() == r.len());
+            // Observing an unknown identity never disturbs the set.
+            r.observe(id(200), now).unwrap_err();
+            assert!(r.peers().count() == r.len());
+        }
+        assert!(inserted > 0);
+    }
+
+    #[test]
+    fn self_peer_rejection_survives_full_churn_and_removals() {
+        let t = Instant::now();
+        let mut r = registry(t);
+        for step in 1..=3u64 {
+            let now = t + Duration::from_secs(step);
+            // The self guard fires regardless of capacity or prior membership.
+            assert_eq!(r.register(id(1), now), Err(PeerError::SelfPeer));
+            r.register(id(2 + step as u8), now).unwrap();
+            for candidate in 2..=5u8 {
+                r.remove(id(candidate));
+            }
+            assert!(r.is_empty());
+            assert_eq!(r.len(), 0);
+        }
+        assert_eq!(
+            r.register(id(1), t + Duration::from_secs(9)),
+            Err(PeerError::SelfPeer)
+        );
+        assert!(r.is_empty());
+    }
+
+    #[test]
+    fn iteration_order_stays_sorted_after_each_removal() {
+        let t = Instant::now();
+        let mut r =
+            PeerRegistry::new(id(1), 5, Duration::from_secs(2), Duration::from_secs(5), t).unwrap();
+        // id(1) is the local identity and may never appear in the set.
+        for peer in [7, 3, 9, 6, 5] {
+            r.register(id(peer), t).unwrap();
+        }
+        for removed in [3, 9, 6] {
+            r.remove(id(removed));
+            let ids: Vec<_> = r.peers().map(|peer| peer.id).collect();
+            assert!(ids.windows(2).all(|w| w[0] < w[1]));
+            assert_eq!(ids.len(), r.len());
+        }
+        assert_eq!(r.len(), 2);
+    }
+
+    #[test]
     fn snapshots_have_stable_order_and_removal_is_idempotent() {
         let t = Instant::now();
         let mut r = registry(t);
