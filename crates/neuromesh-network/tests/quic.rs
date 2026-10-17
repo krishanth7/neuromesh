@@ -175,6 +175,65 @@ async fn allowlisted_but_wrong_expected_identity_is_rejected() {
 }
 
 #[tokio::test]
+async fn request_deadline_is_reported_as_a_distinct_timeout_error() {
+    let (a, b) = endpoints(false);
+    let server = b.clone();
+    let (finish_tx, finish_rx) = tokio::sync::oneshot::channel();
+    let worker = tokio::spawn(async move {
+        let session = server.accept().await.unwrap();
+        // Never answer the probe; the requester's deadline must classify this.
+        let _ = finish_rx.await;
+        drop(session);
+    });
+    let session = a
+        .connect(b.local_addr().unwrap(), "mesh.test", b.node_id())
+        .await
+        .unwrap();
+    let error = session
+        .request(Message::Ping { nonce: 7 })
+        .await
+        .unwrap_err();
+    let timeout = error
+        .downcast_ref::<std::io::Error>()
+        .expect("deadline failure is an io error");
+    assert_eq!(timeout.kind(), std::io::ErrorKind::TimedOut);
+    assert_eq!(timeout.to_string(), "request deadline exceeded");
+    let _ = finish_tx.send(());
+    worker.await.unwrap();
+    a.close();
+    b.close();
+}
+
+#[tokio::test]
+async fn transport_failures_propagate_their_original_error() {
+    let (a, b) = endpoints(false);
+    let server = b.clone();
+    let (connected_tx, connected_rx) = tokio::sync::oneshot::channel();
+    let worker = tokio::spawn(async move {
+        let session = server.accept().await.unwrap();
+        // Hold the session until the requester finished authentication.
+        connected_rx.await.unwrap();
+        drop(session);
+    });
+    let session = a
+        .connect(b.local_addr().unwrap(), "mesh.test", b.node_id())
+        .await
+        .unwrap();
+    connected_tx.send(()).unwrap();
+    worker.await.unwrap();
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let error = session
+        .request(Message::Ping { nonce: 8 })
+        .await
+        .unwrap_err();
+    // The transport's own error survives instead of the generic collapse
+    // the pre-change implementation returned for every failure mode.
+    assert!(!error.to_string().contains("request failed or timed out"));
+    a.close();
+    b.close();
+}
+
+#[tokio::test]
 async fn authenticated_sessions_register_and_duplicate_identity_is_rejected() {
     use neuromesh_core::peers::{Health, PeerError, PeerRegistry};
     use std::time::Instant;

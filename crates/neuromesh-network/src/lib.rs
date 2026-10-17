@@ -30,6 +30,12 @@ fn invalid(reason: &'static str) -> TransportError {
     std::io::Error::new(std::io::ErrorKind::InvalidData, reason).into()
 }
 
+/// Deadline failure with a distinct error kind so callers can separate
+/// "the peer did not answer in time" from protocol and transport failures.
+fn timed_out(reason: &'static str) -> TransportError {
+    std::io::Error::new(std::io::ErrorKind::TimedOut, reason).into()
+}
+
 /// TLS credentials. The private key intentionally has no debug/serialization wrapper.
 pub struct Credentials {
     /// Certificate chain for this endpoint.
@@ -278,6 +284,13 @@ impl Session {
         self.peer
     }
     /// Send a message and receive its matching response; only connection initiators may call.
+    ///
+    /// Failure classification: a deadline fires as `std::io::ErrorKind::TimedOut`
+    /// ("request deadline exceeded"), a sender or message-ID mismatch as
+    /// `std::io::ErrorKind::InvalidData`, and transport failures keep their
+    /// original error type. Every failure still closes the connection, exactly as
+    /// before; only the reported error is no longer collapsed into one generic
+    /// message that hid which stage failed.
     pub async fn request(
         &self,
         message: neuromesh_protocol::Message,
@@ -303,11 +316,16 @@ impl Session {
         })
         .await;
         match result {
-            Ok(Ok(response)) => Ok(response),
-            _ => {
+            Ok(Err(error)) => {
                 self.connection.close(2u32.into(), b"request failed");
-                Err(invalid("request failed or timed out"))
+                Err(error)
             }
+            Err(_elapsed) => {
+                self.connection
+                    .close(2u32.into(), b"request deadline exceeded");
+                Err(timed_out("request deadline exceeded"))
+            }
+            Ok(Ok(response)) => Ok(response),
         }
     }
     /// Handle one request; handler must be quick and nonblocking. Only responders may call.
@@ -332,11 +350,16 @@ impl Session {
         })
         .await;
         match result {
-            Ok(Ok(())) => Ok(()),
-            _ => {
+            Ok(Err(error)) => {
                 self.connection.close(2u32.into(), b"request rejected");
-                Err(invalid("request rejected or timed out"))
+                Err(error)
             }
+            Err(_elapsed) => {
+                self.connection
+                    .close(2u32.into(), b"request deadline exceeded");
+                Err(timed_out("request handling deadline exceeded"))
+            }
+            Ok(Ok(())) => Ok(()),
         }
     }
 }
@@ -374,6 +397,23 @@ async fn read_frame(recv: &mut RecvStream) -> Result<Envelope, TransportError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn failure_classes_use_distinct_kinds_without_leaking_payloads() {
+        let deadline = timed_out("request deadline exceeded");
+        let deadline = deadline
+            .downcast_ref::<std::io::Error>()
+            .expect("deadline is an io error");
+        assert_eq!(deadline.kind(), std::io::ErrorKind::TimedOut);
+        assert_eq!(deadline.to_string(), "request deadline exceeded");
+
+        let rejected = invalid("response identity or ID mismatch");
+        let rejected = rejected
+            .downcast_ref::<std::io::Error>()
+            .expect("rejection is an io error");
+        assert_eq!(rejected.kind(), std::io::ErrorKind::InvalidData);
+        assert_ne!(rejected.kind(), std::io::ErrorKind::TimedOut);
+        assert_eq!(rejected.to_string(), "response identity or ID mismatch");
+    }
     #[test]
     fn proofs_reject_other_sessions_roles_and_untrusted_keys() {
         let identity = Identity::from_seed(&[7; 32]);
