@@ -41,13 +41,9 @@ impl PeerHint {
             SocketAddr::V6(address) => {
                 let ip = address.ip();
                 let valid = match ip.to_ipv4_mapped() {
-                    Some(ip) => {
-                        !ip.is_unspecified() && !ip.is_multicast() && !ip.is_broadcast()
-                    }
+                    Some(ip) => !ip.is_unspecified() && !ip.is_multicast() && !ip.is_broadcast(),
                     None => {
-                        !ip.is_unspecified()
-                            && !ip.is_multicast()
-                            && !ip.is_unicast_link_local()
+                        !ip.is_unspecified() && !ip.is_multicast() && !ip.is_unicast_link_local()
                     }
                 };
                 valid && address.scope_id() == 0 && address.flowinfo() == 0
@@ -298,13 +294,8 @@ mod tests {
         for (flow, scope) in [(1, 0), (0, 1)] {
             let hint = PeerHint {
                 node: sender(),
-                address: std::net::SocketAddrV6::new(
-                    "::1".parse().unwrap(),
-                    4433,
-                    flow,
-                    scope,
-                )
-                .into(),
+                address: std::net::SocketAddrV6::new("::1".parse().unwrap(), 4433, flow, scope)
+                    .into(),
             };
             assert_eq!(hint.validate(), Err(ProtocolError::Validation));
         }
