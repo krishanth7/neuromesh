@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NeuroMesh — Live Engineering Preview</title>
+<meta name="description" content="Interactive preview of the NeuroMesh experimental mesh stack, replaying verified localhost QUIC measurements." />
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #121b2e;
+    --panel-2: #0f1728;
+    --line: #1e2b45;
+    --text: #e6edf7;
+    --muted: #8fa3c1;
+    --accent: #35d0ba;
+    --accent-2: #5aa2ff;
+    --warn: #f2b544;
+    --danger: #ef6b73;
+    --ok: #46d597;
+    --mono: "SFMono-Regular", ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.5; }
+  a { color: var(--accent-2); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { border-bottom: 1px solid var(--line); background:
+    linear-gradient(180deg, #101a30 0%, #0b1220 100%); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 24px; }
+  .top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .mark { width: 34px; height: 34px; border-radius: 8px; position: relative;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); flex: none; }
+  .mark::after { content: ""; position: absolute; inset: 9px; border: 2px solid #0b1220; border-radius: 3px; }
+  h1 { font-size: 19px; margin: 0; letter-spacing: .2px; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .pill { font-size: 11px; letter-spacing: .8px; text-transform: uppercase; padding: 4px 10px;
+    border-radius: 999px; border: 1px solid; font-weight: 600; }
+  .pill.exp { color: var(--warn); border-color: rgba(242,181,68,.5); background: rgba(242,181,68,.08); }
+  .pill.live { color: var(--ok); border-color: rgba(70,213,151,.5); background: rgba(70,213,151,.08); }
+  h2 { font-size: 15px; letter-spacing: .4px; text-transform: uppercase; color: var(--muted);
+    margin: 34px 0 12px; }
+  .grid { display: grid; gap: 14px; }
+  .tiles { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .tile .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
+  .tile .v { font-family: var(--mono); font-size: 24px; margin-top: 6px; }
+  .tile .n { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .two { grid-template-columns: 1.6fr 1fr; }
+  @media (max-width: 900px) { .two { grid-template-columns: 1fr; } }
+  .note { color: var(--muted); font-size: 12.5px; }
+  .replay-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .replay-head .stats { display: flex; gap: 18px; font-family: var(--mono); font-size: 13px; flex-wrap: wrap; }
+  .btn { border: 1px solid var(--line); background: #16203a; color: var(--text); padding: 8px 14px;
+    border-radius: 8px; cursor: pointer; font: inherit; font-size: 13px; }
+  .btn:hover { border-color: var(--accent); }
+  .bars { display: flex; align-items: flex-end; gap: 1.5px; height: 150px; margin-top: 14px;
+    background: var(--panel-2); border-radius: 8px; padding: 8px; overflow: hidden; }
+  .bar { flex: 1 1 auto; min-width: 2px; background: linear-gradient(180deg, var(--accent), #1c7f76);
+    border-radius: 1px; transform-origin: bottom; }
+  .bar.out { background: linear-gradient(180deg, var(--accent-2), #274f8c); }
+  .chart { width: 100%; height: 120px; margin-top: 12px; background: var(--panel-2);
+    border-radius: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
+  tr:last-child td { border-bottom: 0; }
+  .chip { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .5px;
+    padding: 3px 9px; border-radius: 999px; border: 1px solid; text-transform: uppercase; }
+  .chip.ok { color: var(--ok); border-color: rgba(70,213,151,.45); background: rgba(70,213,151,.08); }
+  .chip.road { color: var(--accent-2); border-color: rgba(90,162,255,.45); background: rgba(90,162,255,.08); }
+  .steps { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .step { font-family: var(--mono); font-size: 12px; padding: 8px 10px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
+    transition: all .35s ease; }
+  .step.on { color: #06251f; background: var(--accent); border-color: var(--accent); font-weight: 700; }
+  .step.done { color: var(--ok); border-color: rgba(70,213,151,.5); }
+  .health .step.on.h { background: var(--ok); }
+  .health .step.on.s { background: var(--warn); color: #2a1d02; }
+  .health .step.on.u { background: var(--danger); color: #2b0508; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; font-family: var(--mono); word-break: break-all; }
+  footer { border-top: 1px solid var(--line); margin-top: 40px; color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap top">
+    <div class="mark" aria-hidden="true"></div>
+    <div>
+      <h1>NeuroMesh — Live Engineering Preview</h1>
+      <div class="sub">Authenticated QUIC sessions · bounded NMP/1 protocol · explicit peer health</div>
+    </div>
+    <span class="pill exp" style="margin-left:auto">Experimental · not production-ready</span>
+    <span class="pill live" id="replayPill">Replay idle</span>
+  </div>
+</header>
+
+<main class="wrap">
+  <h2>Verified localhost QUIC session — live replay</h2>
+  <div class="card">
+    <div class="replay-head">
+      <div class="stats">
+        <span>Ping <b id="rCount">0</b>/100</span>
+        <span>Last <b id="rLast">—</b></span>
+        <span>Median <b id="rP50">—</b></span>
+        <span>p95 <b id="rP95">—</b></span>
+        <span>Failures <b style="color:var(--ok)">0</b></span>
+      </div>
+      <div>
+        <button class="btn" id="btnPlay" type="button">Pause</button>
+        <button class="btn" id="btnReset" type="button">Reset</button>
+      </div>
+    </div>
+    <div class="bars" id="bars" aria-label="round-trip time per exchange"></div>
+    <svg class="chart" id="chart" viewBox="0 0 1000 120" preserveAspectRatio="none" role="img"
+      aria-label="cumulative latency trace"></svg>
+    <p class="note" style="margin-bottom:0">
+      Replay of the <b>recorded real measurements</b> in
+      <a href="../results/localhost-quic.json">docs/results/localhost-quic.json</a>
+      (100 sequential exchanges, 10 warmups, one release build on Linux x86_64). This page does not
+      open sockets or fabricate values: bars are the recorded microseconds drawn over time, and the
+      median/p95 are recomputed live from samples as they appear. RTT includes the transport's
+      acknowledgment wait. One local run — not WAN latency, throughput, or an SLO.
+    </p>
+  </div>
+
+  <h2>Recorded session metrics</h2>
+  <div class="grid tiles">
+    <div class="card tile"><div class="k">Handshake + identity proof</div>
+      <div class="v">2.051 ms</div><div class="n">mutual TLS 1.3, Ed25519 exporter bound</div></div>
+    <div class="card tile"><div class="k">Request/response p50</div>
+      <div class="v">26.581 ms</div><div class="n">nearest-rank, n=100</div></div>
+    <div class="card tile"><div class="k">Request/response p95</div>
+      <div class="v">26.880 ms</div><div class="n">includes transport ACK wait</div></div>
+    <div class="card tile"><div class="k">Min / Max</div>
+      <div class="v">0.093 / 27.268 ms</div><div class="n">two wire-fast outliers in this run</div></div>
+    <div class="card tile"><div class="k">Successful exchanges</div>
+      <div class="v">100 / 100</div><div class="n">every Pong nonce verified</div></div>
+    <div class="card tile"><div class="k">Registered peers</div>
+      <div class="v">1</div><div class="n">registered only after authentication</div></div>
+  </div>
+
+  <div class="grid two">
+    <div>
+      <h2>What the stack delivers today</h2>
+      <div class="card" style="padding:6px 6px 6px">
+        <table>
+          <thead><tr><th>Capability</th><th>Delivered behavior</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Identity</td><td>Ed25519 signing, strict verification, domain-separated BLAKE3 node fingerprints</td><td><span class="chip ok">Delivered</span></td></tr>
+            <tr><td>Secure transport</td><td>Mutual TLS 1.3, hostname checks, explicit identity allowlist, session-bound proofs</td><td><span class="chip ok">Delivered</span></td></tr>
+            <tr><td>Resource bounds</td><td>Connection caps, handshake deadlines, streams, bounded 64 KiB envelopes</td><td><span class="chip ok">Delivered</span></td></tr>
+            <tr><td>NMP/1 protocol</td><td>Versioned control messages, strict decoding, sender and request-ID checks</td><td><span class="chip ok">Delivered</span></td></tr>
+            <tr><td>Peer registry</td><td>Bounded membership, monotonic health transitions, explicit removal only</td><td><span class="chip ok">Delivered</span></td></tr>
+            <tr><td>Interoperability</td><td>15 executable Ping encoders, Rust decoder oracle, SQL reporting, Bash automation</td><td><span class="chip ok">Delivered</span></td></tr>
+            <tr><td>Discovery</td><td>Untrusted hints promoted only after transport authentication</td><td><span class="chip road">Roadmap</span></td></tr>
+            <tr><td>Adaptive routing</td><td>Graph snapshots and deterministic route selection</td><td><span class="chip road">Roadmap</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div>
+      <h2>Provenance</h2>
+      <div class="card">
+        <dl class="kv">
+          <dt>Recorded</dt><dd>2026-09-22T09:19:33Z</dd>
+          <dt>Platform</dt><dd>Linux 6.18.44 x86_64 (glibc 2.39)</dd>
+          <dt>Toolchain</dt><dd>rustc 1.98.1 (48a229cea)</dd>
+          <dt>Base commit</dt><dd>c168abc0</dd>
+          <dt>Sources hashed</dt><dd>12 files, SHA-256</dd>
+          <dt>Method</dt><dd>release build, 10 warmups, 100 sequential pings, monotonic clock</dd>
+        </dl>
+        <p class="note" style="margin-bottom:0">
+          Raw samples and full provenance:
+          <a href="../results/localhost-quic.json">localhost-quic.json</a> ·
+          <a href="../results/README.md">interpretation guide</a> ·
+          <a href="../results/interop.json">570 conformance outcomes</a> ·
+          <a href="../results/verification.txt">verification transcript</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <h2>Authenticated session lifecycle</h2>
+  <div class="card">
+    <div class="steps" id="lifecycle">
+      <span class="step">1 · QUIC transport up</span>
+      <span class="step">2 · mutual TLS 1.3</span>
+      <span class="step">3 · exporter-bound proof</span>
+      <span class="step">4 · allowlist + expected NodeId</span>
+      <span class="step">5 · NMP/1 request/response</span>
+      <span class="step">6 · explicit close report</span>
+    </div>
+    <p class="note" style="margin-bottom:0">
+      Sequence executed by the localhost experiment above and asserted by the integration suite:
+      every step must succeed before a peer may be registered — discovery hints never grant trust.
+    </p>
+  </div>
+
+  <h2>Peer health state machine</h2>
+  <div class="card health">
+    <div class="steps" id="health">
+      <span class="step h" data-state="Healthy">Healthy · observation fresh</span>
+      <span class="step s" data-state="Suspect">Suspect · silent ≥ 2 s</span>
+      <span class="step u" data-state="Unavailable">Unavailable · silent ≥ 5 s</span>
+      <span class="step h" data-state="Observe">observe() → Healthy</span>
+      <span class="step" data-state="Remove">remove() · explicit only</span>
+    </div>
+    <p class="note" style="margin-bottom:0">
+      The registry is a pure state machine: callers supply monotonic time and thresholds
+      (2 s suspect / 5 s failure in the test contract). No timers run inside the library, and an
+      unavailable peer keeps its slot until it is explicitly removed — conceptual animation; the
+      measured timeline above is the only real data on this page.
+    </p>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    NeuroMesh is an experimental distributed-systems project, Apache License 2.0. It implements no
+    AGI, no pretrained models, and no hosted inference. Status, limits, and measured results live in
+    the repository README; security expectations in SECURITY.md.
+  </div>
+</footer>
+
+<script>
+"use strict";
+// Real recorded round-trip samples in microseconds (docs/results/localhost-quic.json).
+const RTT = [26763,26722,26577,26579,26727,26586,26619,26661,25671,26728,26625,26561,26563,26775,25643,26513,26596,26556,26478,26523,26615,25640,26510,26571,26609,26584,26838,26832,26518,25685,26506,26688,26665,26636,26574,26586,26607,26503,26597,26642,26573,27075,26611,93,26552,26456,26779,26503,26793,26572,26522,26880,25554,26630,26663,26578,26682,26524,26668,26577,26643,26571,26804,26709,26427,26546,26557,26919,26699,210,26565,26607,26432,26477,26619,26459,26685,25558,27268,26684,26476,25654,26578,26581,26761,26455,26681,26612,26923,26555,26602,27196,26507,26638,26513,26616,26513,26448,26809,26496];
+if (RTT.length !== 100) { throw new Error("recorded sample set must contain exactly 100 values"); }
+const MAX_US = Math.max.apply(null, RTT);
+const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const $ = (id) => document.getElementById(id);
+const bars = $("bars");
+const chart = $("chart");
+const pill = $("replayPill");
+
+function ms(us) { return (us / 1000).toFixed(3); }
+function percentile(sorted, p) { // nearest-rank, matching the recorded method
+  const rank = Math.ceil((p / 100) * sorted.length);
+  return sorted[Math.min(sorted.length, Math.max(rank, 1)) - 1];
+}
+function drawAll() {
+  bars.innerHTML = "";
+  chart.innerHTML = "";
+  for (let i = 0; i < RTT.length; i++) addBar(i, false);
+  paintChart(RTT.length);
+  setStats(RTT.length);
+  pill.textContent = "Recording complete · 100/100";
+}
+function addBar(i, animate) {
+  const el = document.createElement("div");
+  el.className = "bar" + (RTT[i] < 1000 ? " out" : "");
+  el.style.height = Math.max(4, (RTT[i] / MAX_US) * 100) + "%";
+  if (animate) el.style.transition = "opacity .2s";
+  bars.appendChild(el);
+}
+function paintChart(upTo) {
+  const pts = [];
+  for (let i = 0; i < upTo; i++) {
+    const x = (i / (RTT.length - 1)) * 1000;
+    const y = 116 - (RTT[i] / MAX_US) * 108;
+    pts.push(x.toFixed(1) + "," + y.toFixed(1));
+  }
+  const line = pts.length > 1 ? pts.join(" ") : (pts[0] || "0,116");
+  const area = pts.length > 1 ? "0,120 " + line + " " + pts[pts.length - 1].split(",")[0] + ",120" : "";
+  chart.innerHTML =
+    '<polygon points="' + area + '" fill="rgba(53,208,186,.14)"></polygon>' +
+    '<polyline points="' + line + '" fill="none" stroke="#35d0ba" stroke-width="2"></polyline>';
+}
+function setStats(upTo) {
+  const seen = RTT.slice(0, upTo);
+  const sorted = seen.slice().sort((a, b) => a - b);
+  $("rCount").textContent = upTo;
+  $("rLast").textContent = upTo ? ms(seen[seen.length - 1]) + " ms" : "—";
+  $("rP50").textContent = upTo ? ms(percentile(sorted, 50)) + " ms" : "—";
+  $("rP95").textContent = upTo ? ms(percentile(sorted, 95)) + " ms" : "—";
+}
+
+let idx = 0;
+let interval = null;
+let restart = null;
+const btnPlay = $("btnPlay");
+
+function finishPass() {
+  if (interval) { clearInterval(interval); interval = null; }
+  pill.textContent = "Replay complete · 100/100 verified";
+  btnPlay.textContent = "Play";
+  restart = setTimeout(() => { restart = null; resetState(); startPlay(); }, 1800);
+}
+function tick() {
+  if (idx >= RTT.length) { finishPass(); return; }
+  addBar(idx, true);
+  paintChart(idx + 1);
+  setStats(idx + 1);
+  pill.textContent = "Replaying live · ping " + (idx + 1);
+  idx += 1;
+}
+function startPlay() {
+  if (interval) return;
+  if (restart) { clearTimeout(restart); restart = null; }
+  btnPlay.textContent = "Pause";
+  pill.textContent = "Replaying live";
+  interval = setInterval(tick, 45);
+}
+function pausePlay() {
+  if (interval) { clearInterval(interval); interval = null; }
+  if (restart) { clearTimeout(restart); restart = null; }
+  btnPlay.textContent = "Play";
+  pill.textContent = "Replay paused";
+}
+function resetState() {
+  pausePlay();
+  idx = 0;
+  bars.innerHTML = "";
+  chart.innerHTML = "";
+  setStats(0);
+  pill.textContent = "Replay idle";
+}
+btnPlay.addEventListener("click", () => (interval ? pausePlay() : startPlay()));
+$("btnReset").addEventListener("click", resetState);
+
+// Session lifecycle stepper.
+const life = Array.from(document.querySelectorAll("#lifecycle .step"));
+let li = 0;
+function lifeTick() {
+  const at = li % life.length;
+  life.forEach((s, i) => {
+    s.classList.toggle("on", i === at);
+    s.classList.toggle("done", i < at);
+  });
+  li += 1;
+}
+// Health state machine stepper.
+const health = Array.from(document.querySelectorAll("#health .step"));
+let hi = 0;
+function healthTick() {
+  health.forEach((s, i) => s.classList.toggle("on", i === hi % health.length));
+  hi += 1;
+}
+
+if (reduced) {
+  drawAll();
+  life.forEach((s) => s.classList.add("done"));
+  health[0].classList.add("on");
+  pill.textContent = "Static view (reduced motion) · 100/100 recorded";
+} else {
+  resetState();
+  startPlay();
+  lifeTick();
+  healthTick();
+  setInterval(lifeTick, 900);
+  setInterval(healthTick, 1500);
+}
+</script>
+</body>
+</html>
